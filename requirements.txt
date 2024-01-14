@@ -4,4 +4,3 @@ pandas==1.4.3
 python-dotenv==1.0.0
 pyarrow==14.0.1
 pytest==7.1.2
-sodapy==2.2.0
