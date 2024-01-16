@@ -8,7 +8,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable 
 from sqlalchemy.engine.base import Engine
 
-def extract_api_data(APP_TOKEN:str, start_date:str, end_date:str, limit:int) -> pd.DataFrame:
+def extract_crime_data(APP_TOKEN:str, start_date:str, end_date:str, limit:int) -> pd.DataFrame:
     """
     Extract data from API
     """
@@ -66,7 +66,7 @@ def extract_api_data(APP_TOKEN:str, start_date:str, end_date:str, limit:int) -> 
     
     return crime_df
 
-def load_data_to_parquet(start_date:str, end_date:str, crime_df:pd.DataFrame) -> None:
+def load_crime_data_to_parquet(start_date:str, end_date:str, crime_df:pd.DataFrame) -> None:
     """ 
     Save crime data as parquet file (include start_date and end_date in filename)
     """
@@ -161,13 +161,12 @@ def create_date_table(engine:Engine) -> Table:
     
     return date_table
 
-def load_crime_data(chunksize:int, data:list[dict], crime_table:Table, engine:Engine) -> None:
+def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:Engine) -> None:
     """
-    Upsert extracted Chicago crime data into postgres. 
+    Upsert data into specific postgres table and making use of chunking. 
     """
     max_length = len(data)
-
-    key_columns = [pk_column.name for pk_column in crime_table.primary_key.columns.values()]
+    key_columns = [pk_column.name for pk_column in table.primary_key.columns.values()]
 
     for i in range(0, max_length, chunksize):
         if i + chunksize >= max_length:
@@ -176,7 +175,7 @@ def load_crime_data(chunksize:int, data:list[dict], crime_table:Table, engine:En
         else:
             lower_bound = i
             upper_bound = i + chunksize
-        insert_statement = postgresql.insert(crime_table).values(
+        insert_statement = postgresql.insert(table).values(
             data[lower_bound:upper_bound]
         )
         upsert_statement = insert_statement.on_conflict_do_update(
@@ -187,47 +186,42 @@ def load_crime_data(chunksize:int, data:list[dict], crime_table:Table, engine:En
         )
         engine.execute(upsert_statement)
 
-def load_date_data(data:list[dict], date_table:Table, engine:Engine) -> None:
-    """
-    Insert the newly generated date data with holiday column into postgres. 
-    """
+if __name__ == "__main__":
+    # Initialize environment variables and parameters
+    load_dotenv()
+    APP_TOKEN = os.environ.get("APP_TOKEN")
+    DB_USERNAME = os.environ.get("DB_USERNAME")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD")
+    SERVER_NAME = os.environ.get("SERVER_NAME")
+    DATABASE_NAME = os.environ.get("DATABASE_NAME")
+    PORT = os.environ.get("PORT")
 
-    insert_statement = postgresql.insert(date_table).values(data)
+    start_date = '2023-11-06T00:00:00.000'
+    end_date = '2023-11-19T23:59:59.999'
+    limit = 1000
+    holidays_begin_date = "2023-01-01"
+    holidays_end_date = "2024-12-31" 
+    holidays_data_path = ['raw_data/holidays/2023.csv', 'raw_data/holidays/2024.csv']
+
+    crime_df = extract_crime_data(APP_TOKEN=APP_TOKEN, start_date=start_date, end_date=end_date, limit=limit)
+    load_crime_data_to_parquet(start_date=start_date, end_date=end_date, crime_df=crime_df)
+    date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
+
+    engine = create_postgres_connection(
+        username=DB_USERNAME, 
+        password=DB_PASSWORD, 
+        host=SERVER_NAME, 
+        port=PORT, 
+        database=DATABASE_NAME)
+
+    crime_table = create_crime_table(engine=engine)
+    date_table = create_date_table(engine=engine)
+
+    chunksize = 1000
     
-    engine.execute(insert_statement)
+    crime_data = crime_df.to_dict(orient='records')
+    load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
+    
+    date_data = date_df.to_dict(orient='records')
+    load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
 
-# Initialize environment variables and parameters
-load_dotenv()
-APP_TOKEN = os.environ.get("APP_TOKEN")
-DB_USERNAME = os.environ.get("DB_USERNAME")
-DB_PASSWORD = os.environ.get("DB_PASSWORD")
-SERVER_NAME = os.environ.get("SERVER_NAME")
-DATABASE_NAME = os.environ.get("DATABASE_NAME")
-PORT = os.environ.get("PORT")
-
-start_date = '2023-11-06T00:00:00.000'
-end_date = '2023-11-19T23:59:59.999'
-limit = 1000
-holidays_begin_date = "2023-01-01"
-holidays_end_date = "2024-12-31" 
-holidays_data_path = ['raw_data/holidays/2023.csv', 'raw_data/holidays/2024.csv']
-
-crime_df = extract_api_data(APP_TOKEN=APP_TOKEN, start_date=start_date, end_date=end_date, limit=limit)
-load_data_to_parquet(start_date=start_date, end_date=end_date, crime_df=crime_df)
-dates_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
-
-engine = create_postgres_connection(
-    username=DB_USERNAME, 
-    password=DB_PASSWORD, 
-    host=SERVER_NAME, 
-    port=PORT, 
-    database=DATABASE_NAME)
-
-crime_table = create_crime_table(engine=engine)
-date_table = create_date_table(engine=engine)
-
-chunksize = 1000
-crime_data = crime_df.to_dict(orient='records')
-date_data = dates_df.to_dict(orient='records')
-load_crime_data(chunksize=chunksize, data=crime_data, crime_table=crime_table, engine=engine)
-load_date_data(data=date_data, date_table=date_table, engine=engine)
