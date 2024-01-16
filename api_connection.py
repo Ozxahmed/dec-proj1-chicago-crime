@@ -282,14 +282,14 @@ if __name__ == "__main__":
     police_table = create_police_table(engine=engine)
     ward_table = create_ward_table(engine=engine)
 
-    crime_data = crime_df.to_dict(orient='records')
+    crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
     load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
     
-    date_data = date_df.to_dict(orient='records')
+    date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
     load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
 
-    police_data = police_df.to_dict(orient="records")
+    police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
     load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
 
-    ward_data = ward_df.to_dict(orient='records')
+    ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
     load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
