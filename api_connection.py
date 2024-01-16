@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 from dotenv import load_dotenv
 import os
-from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, Float
+from sqlalchemy import create_engine, Table, Column, String, MetaData
 from sqlalchemy.engine import URL
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable 
@@ -68,7 +68,7 @@ def extract_crime_data(APP_TOKEN:str, start_date:str, end_date:str, limit:int) -
 
 def load_crime_data_to_parquet(start_date:str, end_date:str, crime_df:pd.DataFrame) -> None:
     """ 
-    Save crime data as parquet file (include start_date and end_date in filename)
+    Save crime data as parquet file (include start_date and end_date in filename).
     """
     start_date_str = start_date.replace(":","-").replace(".","-")
     end_date_str = end_date.replace(":","-").replace(".","-")
@@ -76,7 +76,7 @@ def load_crime_data_to_parquet(start_date:str, end_date:str, crime_df:pd.DataFra
 
 def generate_date_df(begin_date:str, end_date:str, holidays_data_path:list[str]) -> pd.DataFrame:
     """
-    Create a dataframe for specific dates with holiday column
+    Create a dataframe for specific dates with holiday column.
     """ 
     date_df = pd.DataFrame({'date':pd.date_range(start=begin_date, end=end_date)})
 
@@ -95,9 +95,17 @@ def generate_date_df(begin_date:str, end_date:str, holidays_data_path:list[str])
 
     return pd.merge(left=date_df, right=holidays_df, on=["date"], how="left")
 
+def extract_csv(csv_file_path:str) -> pd.DataFrame:
+    """
+    Return a dataframe object with transformed columns based on a given CSV file path.
+    """
+    df = pd.read_csv(csv_file_path)
+    df.columns = [column.lower().replace(" ","_") for column in df.columns]
+    return df
+
 def create_postgres_connection(username:str, password:str, host:str, port:int, database:str) -> Engine:
     """
-    Connect to Postgres server
+    Connect to Postgres server.
     """
     connection_url = URL.create(
         drivername = "postgresql+pg8000", 
@@ -114,8 +122,8 @@ def create_crime_table(engine:Engine) -> Table:
     Create table for crimes data with applicable column names. 
     """
     meta = MetaData()
-    crime_table = Table(
-        "crime", meta, 
+    table = Table(
+        "stg_crime", meta, 
         Column('id',String,primary_key=True),
         Column('created_at',String),
         Column('updated_at',String),
@@ -138,28 +146,80 @@ def create_crime_table(engine:Engine) -> Table:
         Column('longitude',String)
     )
     meta.create_all(bind=engine)
-
-    return crime_table
+    return table
 
 def create_date_table(engine:Engine) -> Table:
     """
     Create table for 2023 and 2024 dates with respectable holidays. 
     """
     meta = MetaData()
-    date_table = Table(
-        "date", meta, 
+    table = Table(
+        "stg_date", meta, 
         Column('date',String,primary_key=True),
-        Column('day',Integer),
-        Column('month',Integer),
+        Column('day',String),
+        Column('month',String),
         Column('month_name',String),
-        Column('year',Integer),
-        Column('day_of_week',Integer),
+        Column('year',String),
+        Column('day_of_week',String),
         Column('day_of_week_name',String),
         Column('holiday_name',String)
     )
     meta.create_all(bind=engine)
-    
-    return date_table
+    return table
+
+def create_police_table(engine:Engine) -> Table:
+    """
+    Create table for Chicago police district data. 
+    """
+    meta = MetaData()
+    table = Table(
+        "stg_police", meta,
+        Column('district',String,primary_key=True),
+        Column('district_name',String),
+        Column('address',String),
+        Column('city',String),
+        Column('state',String),
+        Column('zip',String),
+        Column('website',String),
+        Column('phone',String),
+        Column('fax',String),
+        Column('tty',String),
+        Column('x_coordinate',String),
+        Column('y_coordinate',String),
+        Column('latitude',String),
+        Column('longitude',String),
+        Column('location',String)
+    )
+    meta.create_all(bind=engine)
+    return table
+
+def create_ward_table(engine:Engine) -> Table:
+    """
+    Create table for Chicago police district data. 
+    """
+    meta = MetaData()
+    table = Table(
+        "stg_ward", meta,
+        Column('ward',String,primary_key=True),
+        Column('alderman',String),
+        Column('address',String),
+        Column('city',String),
+        Column('state',String),
+        Column('zipcode',String),
+        Column('ward_phone',String),
+        Column('ward_fax',String),
+        Column('email',String),
+        Column('website',String),
+        Column('location',String),
+        Column('city_hall_address',String),
+        Column('city_hall_city',String),
+        Column('city_hall_state',String),
+        Column('city_hall_zipcode',String),
+        Column('city_hall_phone',String),
+        Column('photo_link',String)
+    )
+    meta.create_all(bind=engine)
+    return table
 
 def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:Engine) -> None:
     """
@@ -202,10 +262,13 @@ if __name__ == "__main__":
     holidays_begin_date = "2023-01-01"
     holidays_end_date = "2024-12-31" 
     holidays_data_path = ['raw_data/holidays/2023.csv', 'raw_data/holidays/2024.csv']
+    chunksize = 1000
 
     crime_df = extract_crime_data(APP_TOKEN=APP_TOKEN, start_date=start_date, end_date=end_date, limit=limit)
     load_crime_data_to_parquet(start_date=start_date, end_date=end_date, crime_df=crime_df)
     date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
+    police_df = extract_csv(csv_file_path="raw_data/Police_Stations.csv")
+    ward_df = extract_csv(csv_file_path="raw_data/Ward_Offices.csv")
 
     engine = create_postgres_connection(
         username=DB_USERNAME, 
@@ -216,12 +279,17 @@ if __name__ == "__main__":
 
     crime_table = create_crime_table(engine=engine)
     date_table = create_date_table(engine=engine)
+    police_table = create_police_table(engine=engine)
+    ward_table = create_ward_table(engine=engine)
 
-    chunksize = 1000
-    
     crime_data = crime_df.to_dict(orient='records')
     load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
     
     date_data = date_df.to_dict(orient='records')
     load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
 
+    police_data = police_df.to_dict(orient="records")
+    load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
+
+    ward_data = ward_df.to_dict(orient='records')
+    load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
