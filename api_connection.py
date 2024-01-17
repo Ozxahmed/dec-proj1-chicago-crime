@@ -1,3 +1,4 @@
+# %%
 import requests
 import pandas as pd
 from dotenv import load_dotenv
@@ -13,7 +14,7 @@ def _generate_date_ranges(start_date:str, end_date:str, days_delta:int) -> list[
     Generates a list of date ranges with start and end dates included.
 
     Usage example:
-        _generate_datetime_ranges(start_date="2023-10-01", end_date="2023-10-14", days_delta=7)
+        _generate_datetime_ranges(start_date="2023-10-01T:00:00:00.000", end_date="2023-10-14T23:59:59.999", days_delta=7)
 
     Returns:
         A list of dictionaries with date ranges in str format with the following structure:
@@ -25,30 +26,66 @@ def _generate_date_ranges(start_date:str, end_date:str, days_delta:int) -> list[
         ```
 
     Args:
-        start_date: provide a str with the format "yyyy-mm-dd".
-        end_date: provide a str with the format "yyyy-mm-dd".
+        start_date: provide a str with the format "yyyy-mm-ddThh:mm:ss.sss".
+        end_date: provide a str with the format "yyyy-mm-ddThh:mm:ss.sss".
         days_delta: provide an int for number of days to separate date ranges. 
     """
 
     date_ranges = []
-    raw_start_time = datetime.strptime(start_date, "%Y-%m-%d")
-    raw_end_time = datetime.strptime(end_date, "%Y-%m-%d")
+    raw_start_time = datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S.%f')
+    raw_end_time = datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S.%f')
     
     while raw_start_time < raw_end_time:
         if raw_start_time + timedelta(days=days_delta) >= raw_end_time:
             date_ranges.append({
-                'start_time': raw_start_time.strftime('%Y-%m-%dT00:00:00.000'),
-                'end_time': raw_end_time.strftime('%Y-%m-%dT23:59:59.999')
+                'start_time': raw_start_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3],
+                'end_time': raw_end_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
             })
         else:
             date_ranges.append({
-                'start_time': raw_start_time.strftime('%Y-%m-%dT00:00:00.000'),
-                'end_time': (raw_start_time + timedelta(days=days_delta-1)).strftime('%Y-%m-%dT23:59:59.999')
+                'start_time': raw_start_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3],
+                'end_time': (raw_start_time + timedelta(days=days_delta) - timedelta(milliseconds=1)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] # ensures end_time does not overlap with next start_time
             })
-        raw_start_time += timedelta(days=days_delta)
+        raw_start_time += timedelta(days=days_delta) 
 
     return date_ranges
 
+def get_min_date_crime_data(APP_TOKEN:str) -> str:
+    """
+    Retrieves the minimum value of the date_of_occurence field in the Chicago crimes dataset.
+
+    Usage example:
+        get_min_date_crime_data(APP_TOKEN="abc123")
+
+    Returns:
+        A str object with the date written in 'yyyy-mm-dd' format. 
+
+    Args:
+        APP_TOKEN: provide a str with generated App Token credentials.
+    """
+    response = requests.get(f"https://data.cityofchicago.org/resource/x2n5-8w5q.json?"
+                            f"$$app_token={APP_TOKEN}"
+                            f"&$select=min(date_of_occurrence)")
+    return response.json()[0].get('min_date_of_occurrence')
+
+def get_max_date_crime_data(APP_TOKEN:str) -> str:
+    """
+    Retrieves the maximum value of the date_of_occurence field in the Chicago crimes dataset.
+
+    Usage example:
+        get_max_date_crime_data(APP_TOKEN="abc123")
+
+    Returns:
+        A str object with the date written in 'yyyy-mm-dd' format. 
+
+    Args:
+        APP_TOKEN: provide a str with generated App Token credentials.
+    """
+    response = requests.get(f"https://data.cityofchicago.org/resource/x2n5-8w5q.json?"
+                            f"$$app_token={APP_TOKEN}"
+                            f"&$select=max(date_of_occurrence)")
+    return response.json()[0].get('max_date_of_occurrence')
+    
 def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -> pd.DataFrame:
     """
     Extracts Chicago crimes data from API endpoint for a given date range.
@@ -60,7 +97,7 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
         pd.DataFrame object encapsulating crimes data with following structure:   
         ```
         -------------------------------------------------------------------------------------
-        | id	             |  created_at	             |  updated_at	             |	...	|
+        | id	             |  created_at	             |  updated_at               |	...	|
         -------------------------------------------------------------------------------------
         | row-n56f.jhj4-rhq4 |	2023-11-14T11:02:01.256Z |	2023-11-14T11:02:11.508Z |	...	|
         -------------------------------------------------------------------------------------
@@ -82,14 +119,14 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
     i = 0
     
     while True:
-        offset = i * limit # offset = 0, 1000, 2000, etc.
+        offset = i * limit # if limit = 1000 -> offset = 0, 1000, 2000, etc.
         response = requests.get(f"https://data.cityofchicago.org/resource/x2n5-8w5q.json?"
                                 f"$$app_token={APP_TOKEN}"
                                 f"&$order=:id"  
                                 f"&${soql_date}"
                                 f"&$limit={limit}"
                                 f"&$offset={offset}"
-                                f"&$select=:*,*") #include metadata field info
+                                f"&$select=:*,*") # include metadata field info
 
         if not response.status_code==200:
             raise Exception
@@ -105,7 +142,7 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
 
     crime_df = pd.json_normalize(data=response_data)
 
-    # drop unnecessary columns
+    # Drop unnecessary columns
     crime_df = crime_df.drop(columns=[
         ':@computed_region_awaf_s7ux', 
         ':@computed_region_6mkv_f3dw',
@@ -117,6 +154,7 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
         'location.longitude',
         'location.human_address'])
     
+    # Rename columns where applicable
     crime_df = crime_df.rename(columns={
         ":id": "id",
         ":created_at": "created_at",
@@ -150,11 +188,11 @@ def generate_date_df(begin_date:str, end_date:str, holidays_data_path:list[str])
         pd.DataFrame object encapsulating dates data and corresponding holiday names with following structure:   
         ```
         -------------------------------------------------------------
-        | date	     |  day_of_week_name  |  holiday_name   |	...	|
+        | date	     |  day_of_week_name  |  holiday_name   |   ...	|
         -------------------------------------------------------------
-        | 2023-01-01 |	Sunday            |	 NaN            |	...	|
+        | 2023-01-01 |	Sunday            |	 NaN            |   ...	|
         -------------------------------------------------------------
-        | 2023-01-02 |	Monday            |	 New Year's Day |	...	|
+        | 2023-01-02 |	Monday            |	 New Year's Day |   ...	|
         -------------------------------------------------------------
         ```
 
@@ -347,8 +385,8 @@ if __name__ == "__main__":
     DATABASE_NAME = os.environ.get("DATABASE_NAME")
     PORT = os.environ.get("PORT")
 
-    start_date = '2023-02-01'
-    end_date = '2024-01-01'
+    start_date = get_min_date_crime_data(APP_TOKEN=APP_TOKEN)
+    end_date = get_max_date_crime_data(APP_TOKEN=APP_TOKEN)
     days_delta = 7
     limit = 1000
     holidays_begin_date = "2023-01-01"
@@ -373,26 +411,26 @@ if __name__ == "__main__":
 
         start_time = date_range['start_time']
         end_time = date_range['end_time']
-        print(f"Chicago Crime Data ELT - Extracting API - {counter} - {start_time} - {end_time}")
+        print(f"Chicago Crime Data ELT - {counter} - Extracting API - {start_time} - {end_time}")
         crime_df = extract_crime_data(APP_TOKEN=APP_TOKEN, start_time=start_time, end_time=end_time, limit=limit)
-        print(f"Chicago Crime Data ELT - Loading API data to parquet files - {counter} - {start_time} - {end_time}")
+        print(f"Chicago Crime Data ELT - {counter} - Saving API data as parquet file - {start_time} - {end_time}")
         load_crime_data_to_parquet(start_time=start_time, end_time=end_time, crime_df=crime_df)
 
         if counter==1:
             # Extracting or generating supplemental data
-            print("Chicago Crime Data ELT - Extracting supplemental data")
+            print(f"Chicago Crime Data ELT - {counter} - Extracting supplemental data")
             date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
             police_df = extract_csv(csv_file_path="raw_data/Police_Stations.csv")
             ward_df = extract_csv(csv_file_path="raw_data/Ward_Offices.csv")
 
-            print("Chicago Crime Data ELT - Creating database tables")
+            print(f"Chicago Crime Data ELT - {counter} - Creating database tables")
             crime_table = create_crime_table(engine=engine)
             date_table = create_date_table(engine=engine)
             police_table = create_police_table(engine=engine)
             ward_table = create_ward_table(engine=engine)
 
             # Loading data to database tables
-            print("Chicago Crime Data ELT - Inserting data to supplemental tables")    
+            print(f"Chicago Crime Data ELT - {counter} - Inserting data to supplemental tables")    
             date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
             load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
 
@@ -402,7 +440,7 @@ if __name__ == "__main__":
             ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
             load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
  
-        print(f"Chicago Crime Data ELT - Inserting crime data to table - {counter}")
+        print(f"Chicago Crime Data ELT - {counter} - Inserting crime data to table")
         crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
         load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
     
