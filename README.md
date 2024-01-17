@@ -28,3 +28,9 @@ Project Outline
 8. AWS 
 9. Presentation 
 
+### To do later:
+- Divide code into modules (pipelines.py, assets.py, connectors.py)
+- Write README.md
+- Write project_plan.md
+#### OPTIONAL:
+- OOP (Create classes + objects)
