@@ -1,9 +1,8 @@
-# %%
 import requests
 import pandas as pd
 from dotenv import load_dotenv
 import os
-from sqlalchemy import create_engine, Table, Column, String, MetaData
+from sqlalchemy import create_engine, Table, Column, String, MetaData, inspect
 from sqlalchemy.engine import URL
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine.base import Engine
@@ -374,7 +373,7 @@ def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:En
         engine.execute(upsert_statement)
 
 if __name__ == "__main__":
-    # Initialize environment variables and parameters
+    # Initializing environment variables and parameters
     print("Chicago Crime Data ELT - Start")
     print("Chicago Crime Data ELT - Initializing parameters and environment variables")
     load_dotenv()
@@ -385,7 +384,6 @@ if __name__ == "__main__":
     DATABASE_NAME = os.environ.get("DATABASE_NAME")
     PORT = os.environ.get("PORT")
 
-    start_date = get_min_date_crime_data(APP_TOKEN=APP_TOKEN)
     end_date = get_max_date_crime_data(APP_TOKEN=APP_TOKEN)
     days_delta = 7
     limit = 1000
@@ -402,46 +400,55 @@ if __name__ == "__main__":
         host=SERVER_NAME, 
         port=PORT, 
         database=DATABASE_NAME)
-
-    # Extracting crime data
-    date_ranges = _generate_date_ranges(start_date=start_date, end_date=end_date, days_delta=days_delta)
-    counter = 0
-    for date_range in date_ranges:
-        counter += 1
-
-        start_time = date_range['start_time']
-        end_time = date_range['end_time']
-        print(f"Chicago Crime Data ELT - {counter} - Extracting API - {start_time} - {end_time}")
-        crime_df = extract_crime_data(APP_TOKEN=APP_TOKEN, start_time=start_time, end_time=end_time, limit=limit)
-        print(f"Chicago Crime Data ELT - {counter} - Saving API data as parquet file - {start_time} - {end_time}")
-        load_crime_data_to_parquet(start_time=start_time, end_time=end_time, crime_df=crime_df)
-
-        if counter==1:
-            # Extracting or generating supplemental data
-            print(f"Chicago Crime Data ELT - {counter} - Extracting supplemental data")
-            date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
-            police_df = extract_csv(csv_file_path="raw_data/Police_Stations.csv")
-            ward_df = extract_csv(csv_file_path="raw_data/Ward_Offices.csv")
-
-            print(f"Chicago Crime Data ELT - {counter} - Creating database tables")
-            crime_table = create_crime_table(engine=engine)
-            date_table = create_date_table(engine=engine)
-            police_table = create_police_table(engine=engine)
-            ward_table = create_ward_table(engine=engine)
-
-            # Loading data to database tables
-            print(f"Chicago Crime Data ELT - {counter} - Inserting data to supplemental tables")    
-            date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
-            load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
-
-            police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
-            load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
-
-            ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
-            load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
- 
-        print(f"Chicago Crime Data ELT - {counter} - Inserting crime data to table")
-        crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
-        load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
     
+    # Checking if database is empty (no tables and no records exist)
+    print("Chicago Crime Data ELT - Inspecting database")
+    inspector = inspect(engine)
+
+    if inspector.get_table_names() == []:
+        print("Chicago Crime Data ELT - Database empty - Creating records from beginning")
+        start_date = get_min_date_crime_data(APP_TOKEN=APP_TOKEN)
+
+        # Extracting crime data from beginning
+        date_ranges = _generate_date_ranges(start_date=start_date, end_date=end_date, days_delta=days_delta)
+        counter = 0
+        for date_range in date_ranges:
+            counter += 1
+
+            start_time = date_range['start_time']
+            end_time = date_range['end_time']
+            print(f"Chicago Crime Data ELT - {counter} - Extracting API - {start_time} - {end_time}")
+            crime_df = extract_crime_data(APP_TOKEN=APP_TOKEN, start_time=start_time, end_time=end_time, limit=limit)
+            
+            print(f"Chicago Crime Data ELT - {counter} - Saving API data to parquet file - {start_time} - {end_time}")
+            load_crime_data_to_parquet(start_time=start_time, end_time=end_time, crime_df=crime_df)
+
+            if counter==1:
+                # Extracting or generating supplemental data
+                print(f"Chicago Crime Data ELT - {counter} - Extracting supplemental data")
+                date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
+                police_df = extract_csv(csv_file_path="raw_data/Police_Stations.csv")
+                ward_df = extract_csv(csv_file_path="raw_data/Ward_Offices.csv")
+
+                print(f"Chicago Crime Data ELT - {counter} - Creating database tables")
+                crime_table = create_crime_table(engine=engine)
+                date_table = create_date_table(engine=engine)
+                police_table = create_police_table(engine=engine)
+                ward_table = create_ward_table(engine=engine)
+
+                # Loading data to database tables
+                print(f"Chicago Crime Data ELT - {counter} - Inserting data to supplemental tables")    
+                date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
+                load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
+
+                police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
+                load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
+
+                ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
+                load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
+    
+            print(f"Chicago Crime Data ELT - {counter} - Inserting crime data to crime table")
+            crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
+            load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
+        
     print("Chicago Crime Data ELT - Success")
