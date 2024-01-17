@@ -13,7 +13,7 @@ def _generate_date_ranges(start_date:str, end_date:str, days_delta:int) -> list[
     Generates a list of date ranges with start and end dates included.
 
     Usage example:
-        _generate_datetime_ranges(start_date="2023-10-01T:00:00:00.000", end_date="2023-10-14T23:59:59.999", days_delta=7)
+        _generate_date_ranges(start_date="2023-10-01T00:00:00.000", end_date="2023-10-14T23:59:59.999", days_delta=7)
 
     Returns:
         A list of dictionaries with date ranges in str format with the following structure:
@@ -57,7 +57,7 @@ def get_min_date_crime_data(APP_TOKEN:str) -> str:
         get_min_date_crime_data(APP_TOKEN="abc123")
 
     Returns:
-        A str object with the date written in 'yyyy-mm-dd' format. 
+        A str object with the date written in 'yyyy-mm-ddThh:mm:ss.sss' format. 
 
     Args:
         APP_TOKEN: provide a str with generated App Token credentials.
@@ -75,7 +75,7 @@ def get_max_date_crime_data(APP_TOKEN:str) -> str:
         get_max_date_crime_data(APP_TOKEN="abc123")
 
     Returns:
-        A str object with the date written in 'yyyy-mm-dd' format. 
+        A str object with the date written in 'yyyy-mm-ddThh:mm:ss.sss' format. 
 
     Args:
         APP_TOKEN: provide a str with generated App Token credentials.
@@ -90,7 +90,7 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
     Extracts Chicago crimes data from API endpoint for a given date range.
 
     Usage example:
-        extract_crime_data(APP_TOKEN="abc123", start_time="2023-11-14T00:00:00.000", end_time="2023-11-19T23:59:59.999")
+        extract_crime_data(APP_TOKEN="abc123", start_time="2023-11-14T00:00:00.000", end_time="2023-11-19T23:59:59.999", limit=100)
 
     Returns:
         pd.DataFrame object encapsulating crimes data with following structure:   
@@ -174,7 +174,7 @@ def load_crime_data_to_parquet(start_time:str, end_time:str, crime_df:pd.DataFra
     """
     start_time_str = start_time.replace(":","-").replace(".","-")
     end_time_str = end_time.replace(":","-").replace(".","-")
-    crime_df.to_parquet(f"data/crime_{start_time_str}_{end_time_str}.parquet", index=False)
+    crime_df.to_parquet(f"elt_project/data/crime_{start_time_str}_{end_time_str}.parquet", index=False)
 
 def generate_date_df(begin_date:str, end_date:str, holidays_data_path:list[str]) -> pd.DataFrame:
     """
@@ -389,7 +389,7 @@ if __name__ == "__main__":
     limit = 1000
     holidays_begin_date = "2023-01-01"
     holidays_end_date = "2024-12-31" 
-    holidays_data_path = ['raw_data/holidays/2023.csv', 'raw_data/holidays/2024.csv']
+    holidays_data_path = ['elt_project/raw_data/holidays/2023.csv', 'elt_project/raw_data/holidays/2024.csv']
     chunksize = 1000
 
     # Connecting to postgres and creating database tables
@@ -427,8 +427,8 @@ if __name__ == "__main__":
                 # Extracting or generating supplemental data
                 print(f"Chicago Crime Data ELT - {counter} - Extracting supplemental data")
                 date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
-                police_df = extract_csv(csv_file_path="raw_data/Police_Stations.csv")
-                ward_df = extract_csv(csv_file_path="raw_data/Ward_Offices.csv")
+                police_df = extract_csv(csv_file_path="elt_project/raw_data/Police_Stations.csv")
+                ward_df = extract_csv(csv_file_path="elt_project/raw_data/Ward_Offices.csv")
 
                 print(f"Chicago Crime Data ELT - {counter} - Creating database tables")
                 crime_table = create_crime_table(engine=engine)
