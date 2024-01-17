@@ -24,7 +24,6 @@ Project Outline
     - grouping 
     - having/where
     - window functions
-    - 
 7. Docker
 8. AWS 
 9. Presentation 
