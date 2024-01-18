@@ -206,7 +206,7 @@ def generate_date_df(begin_date:str, end_date:str, holidays_data_path:list[str])
     Creates a pd.DataFrame object for a date range with an additional holiday field.
 
     Usage example:
-        generate_date_df(begin_date="2023-01-01", end_date="2024-12-12", holidays_data_path=["raw_data/holidays/2023.csv"])
+        generate_date_df(begin_date="2023-01-01", end_date="2024-12-12", holidays_data_path=["data/holidays/2023.csv"])
 
     Returns:
         pd.DataFrame object encapsulating dates data and corresponding holiday names with following structure:   
@@ -414,7 +414,7 @@ if __name__ == "__main__":
     limit = 1000
     holidays_begin_date = "2023-01-01"
     holidays_end_date = "2024-12-31" 
-    holidays_data_path = ['elt_project/raw_data/holidays/2023.csv', 'elt_project/raw_data/holidays/2024.csv']
+    holidays_data_path = ['elt_project/data/holidays/2023.csv', 'elt_project/data/holidays/2024.csv']
     chunksize = 1000
 
     # Connecting to postgres and creating database tables
@@ -455,8 +455,8 @@ if __name__ == "__main__":
                 # Extracting or generating supplemental data
                 print(f"Chicago Crime Data ELT - {counter} - Extracting supplemental data")
                 date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
-                police_df = extract_csv(csv_file_path="elt_project/raw_data/Police_Stations.csv")
-                ward_df = extract_csv(csv_file_path="elt_project/raw_data/Ward_Offices.csv")
+                police_df = extract_csv(csv_file_path="elt_project/data/Police_Stations.csv")
+                ward_df = extract_csv(csv_file_path="elt_project/data/Ward_Offices.csv")
 
                 print(f"Chicago Crime Data ELT - {counter} - Creating database tables")
                 crime_table = create_crime_table(engine=engine)

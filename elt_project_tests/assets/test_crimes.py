@@ -71,5 +71,5 @@ def setup_input_df():
 
 def test_generate_date_df(setup_input_df):
     expected = setup_input_df
-    df = generate_date_df("2023-01-01", "2023-01-03", ['elt_project/raw_data/holidays/2023.csv'])
+    df = generate_date_df("2023-01-01", "2023-01-03", ['elt_project/data/holidays/2023.csv'])
     pd.testing.assert_frame_equal(left=expected, right=df)
