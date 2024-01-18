@@ -104,6 +104,9 @@ def get_max_update_time_crime_api(APP_TOKEN:str) -> str:
     return response.json()[0].get('max_updated_at')
 
 def get_max_update_time_crime_table(crime_table_name:str, engine: Engine) -> str:
+    """
+    Returns maximum of value of the updated_at field from the Chicago crimes table in str format.
+    """
     select_max_update_query = f"select max(updated_at) from {crime_table_name}"
     return [dict(row) for row in engine.execute(select_max_update_query).all()][0].get("max")
 
@@ -476,14 +479,14 @@ if __name__ == "__main__":
             crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
             load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
     else:
-        print("Chicago Crime Data ELT - Database records exist - Checking for new updates")
+        print("Chicago Crime Data ELT - Database records exist - Checking for API updates")
         max_api = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
         max_table = get_max_update_time_crime_table(crime_table_name="stg_crime", engine=engine)
         max_api_raw = datetime.strptime(max_api, '%Y-%m-%dT%H:%M:%S.%fZ')
         max_table_raw = datetime.strptime(max_table, '%Y-%m-%dT%H:%M:%S.%fZ') 
         
         if max_api_raw > max_table_raw:
-            print("Chicago Crime Data ELT - New updates exist - Retrieving updated records")
+            print("Chicago Crime Data ELT - New updates exist - Retrieving updated records from API")
 
             # Configuring parameters in correct format
             min_updated_at_val = max_table_raw + timedelta(milliseconds=1) # ensure that new data does not overlap with current data
