@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 from dotenv import load_dotenv
 import os
-from sqlalchemy import create_engine, Table, Column, String, Integer, Float, DateTime, MetaData, inspect
+from sqlalchemy import create_engine, Table, Column, String, Integer, Float, DateTime, Date, MetaData, inspect
 from sqlalchemy.engine import URL
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine.base import Engine
@@ -317,7 +317,7 @@ def create_crime_table(engine:Engine) -> Table:
         Column("x_coordinate", String),
         Column("y_coordinate", String),
         Column("latitude", Float),
-        Column("longitude", Float),
+        Column("longitude", Float)
     )
     meta.create_all(bind=engine)
     return table
@@ -330,12 +330,12 @@ def create_date_table(engine:Engine) -> Table:
     meta = MetaData()
     table = Table(
         "stg_date", meta, 
-        Column('date',String,primary_key=True),
-        Column('day',String),
-        Column('month',String),
+        Column('date',Date,primary_key=True),
+        Column('day',Integer),
+        Column('month',Integer),
         Column('month_name',String),
-        Column('year',String),
-        Column('day_of_week',String),
+        Column('year',Integer),
+        Column('day_of_week',Integer),
         Column('day_of_week_name',String),
         Column('holiday_name',String)
     )
