@@ -28,3 +28,11 @@ Project Outline
 8. AWS 
 9. Presentation 
 
+
+**IMPORTANT**: Once we are done with the project, please renew your APP TOKENs on the chicago crime data website.
+### To do later:
+- Divide code into modules (pipelines.py, assets.py, connectors.py)
+- Write README.md
+- Write project_plan.md
+#### OPTIONAL:
+- OOP (Create classes + objects)
