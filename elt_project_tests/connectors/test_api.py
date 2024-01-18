@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from elt_project.api_connection import extract_crime_data
+from elt_project.api_connection import extract_crime_api
 import os
 import pytest
 from datetime import datetime
@@ -12,11 +12,18 @@ def setup():
 
 def test_chicago_crimes_api_connection(setup):
     APP_TOKEN = os.environ.get("APP_TOKEN")
+    column_names = ["date_of_occurrence", ":updated_at"]
     start_time = '2023-11-14T00:00:00.000'
     end_time = '2023-11-15T23:59:59.999'
     limit = 1000
     
-    data = extract_crime_data(APP_TOKEN=APP_TOKEN, start_time=start_time, end_time=end_time, limit=limit)
+    data = extract_crime_api(
+        APP_TOKEN=APP_TOKEN, 
+        column_name=column_names[0],
+        start_time=start_time, 
+        end_time=end_time, 
+        limit=limit
+    )
     
     assert len(data) > 0 # asserts data records are retrieved
     assert list(data.columns) == [ # asserts column names are correct

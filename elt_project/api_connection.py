@@ -49,7 +49,7 @@ def _generate_date_ranges(start_date:str, end_date:str, days_delta:int) -> list[
 
     return date_ranges
 
-def get_min_date_crime_data(APP_TOKEN:str) -> str:
+def get_min_date_crime_api(APP_TOKEN:str) -> str:
     """
     Retrieves the minimum value of the date_of_occurence field in the Chicago crimes dataset.
 
@@ -67,7 +67,7 @@ def get_min_date_crime_data(APP_TOKEN:str) -> str:
                             f"&$select=min(date_of_occurrence)")
     return response.json()[0].get('min_date_of_occurrence')
 
-def get_max_date_crime_data(APP_TOKEN:str) -> str:
+def get_max_date_crime_api(APP_TOKEN:str) -> str:
     """
     Retrieves the maximum value of the date_of_occurence field in the Chicago crimes dataset.
 
@@ -84,13 +84,41 @@ def get_max_date_crime_data(APP_TOKEN:str) -> str:
                             f"$$app_token={APP_TOKEN}"
                             f"&$select=max(date_of_occurrence)")
     return response.json()[0].get('max_date_of_occurrence')
-    
-def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -> pd.DataFrame:
+
+def get_max_update_time_crime_api(APP_TOKEN:str) -> str:
+    """
+    Retrieves the maximum value of the :updated_at field in the Chicago crimes dataset.
+
+    Usage example:
+        get_max_update_time_crime_data(APP_TOKEN="abc123")
+
+    Returns:
+        A str object with the date written in 'yyyy-mm-ddThh:mm:ss.sssZ' format. 
+
+    Args:
+        APP_TOKEN: provide a str with generated App Token credentials.
+    """
+    response = requests.get(f"https://data.cityofchicago.org/resource/x2n5-8w5q.json?"
+                            f"$$app_token={APP_TOKEN}"
+                            f"&$select=max(:updated_at)")
+    return response.json()[0].get('max_updated_at')
+
+def get_max_update_time_crime_table(crime_table_name:str, engine: Engine) -> str:
+    select_max_update_query = f"select max(updated_at) from {crime_table_name}"
+    return [dict(row) for row in engine.execute(select_max_update_query).all()][0].get("max")
+
+def extract_crime_api(APP_TOKEN:str, column_name:str, start_time:str, end_time:str, limit:int) -> pd.DataFrame:
     """
     Extracts Chicago crimes data from API endpoint for a given date range.
 
     Usage example:
-        extract_crime_data(APP_TOKEN="abc123", start_time="2023-11-14T00:00:00.000", end_time="2023-11-19T23:59:59.999", limit=100)
+        extract_crime_data(
+            APP_TOKEN="abc123",
+            column_name="date_of_occurrence", 
+            start_time="2023-11-14T00:00:00.000", 
+            end_time="2023-11-19T23:59:59.999", 
+            limit=100
+        )
 
     Returns:
         pd.DataFrame object encapsulating crimes data with following structure:   
@@ -106,14 +134,16 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
 
     Args:
         APP_TOKEN: provide a str with generated App Token credentials.
+        column_name: provide a str ('date_of_occurrence' or ':updated_at') of needed column to filter data.
         start_time: provide a str with the format "yyyy-mm-ddThh:mm:ss.SSS".
         end_time: provide a str with the format "yyyy-mm-ddThh:mm:ss.SSS".
+        limit: provide an int for maximum records retrieved per each API call.
 
     Raises:
         Exception when HTTP response code is not 200.
         Exception when paging over API endpoint for more than 1000 times (stuck in while loop). 
     """
-    soql_date = f"where=date_of_occurrence between '{start_time}' and '{end_time}'" 
+    soql_date = f"where={column_name} between '{start_time}' and '{end_time}'" 
     response_data = []
     i = 0
     
@@ -167,14 +197,6 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
     })
     
     return crime_df
-
-def load_crime_data_to_parquet(start_time:str, end_time:str, crime_df:pd.DataFrame) -> None:
-    """ 
-    Saves crime data as parquet file (include start_time and end_time in filename).
-    """
-    start_time_str = start_time.replace(":","-").replace(".","-")
-    end_time_str = end_time.replace(":","-").replace(".","-")
-    crime_df.to_parquet(f"elt_project/data/crime_{start_time_str}_{end_time_str}.parquet", index=False)
 
 def generate_date_df(begin_date:str, end_date:str, holidays_data_path:list[str]) -> pd.DataFrame:
     """
@@ -271,7 +293,7 @@ def create_crime_table(engine:Engine) -> Table:
         Column('latitude',String),
         Column('longitude',String)
     )
-    meta.create_all(bind=engine)
+    meta.create_all(bind=engine, checkfirst=True) # does not re-create table if it already exists
     return table
 
 def create_date_table(engine:Engine) -> Table:
@@ -374,7 +396,7 @@ def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:En
 
 if __name__ == "__main__":
     # Initializing environment variables and parameters
-    print("Chicago Crime Data ELT - Start")
+    print("Chicago Crime Data ELT - Pipeline start")
     print("Chicago Crime Data ELT - Initializing parameters and environment variables")
     load_dotenv()
     APP_TOKEN = os.environ.get("APP_TOKEN")
@@ -384,7 +406,7 @@ if __name__ == "__main__":
     DATABASE_NAME = os.environ.get("DATABASE_NAME")
     PORT = os.environ.get("PORT")
 
-    end_date = get_max_date_crime_data(APP_TOKEN=APP_TOKEN)
+    end_date = get_max_date_crime_api(APP_TOKEN=APP_TOKEN)
     days_delta = 7
     limit = 1000
     holidays_begin_date = "2023-01-01"
@@ -406,8 +428,8 @@ if __name__ == "__main__":
     inspector = inspect(engine)
 
     if inspector.get_table_names() == []:
-        print("Chicago Crime Data ELT - Database empty - Creating records from beginning")
-        start_date = get_min_date_crime_data(APP_TOKEN=APP_TOKEN)
+        print("Chicago Crime Data ELT - Database empty - Retrieving records from beginning")
+        start_date = get_min_date_crime_api(APP_TOKEN=APP_TOKEN)
 
         # Extracting crime data from beginning
         date_ranges = _generate_date_ranges(start_date=start_date, end_date=end_date, days_delta=days_delta)
@@ -418,10 +440,13 @@ if __name__ == "__main__":
             start_time = date_range['start_time']
             end_time = date_range['end_time']
             print(f"Chicago Crime Data ELT - {counter} - Extracting API - {start_time} - {end_time}")
-            crime_df = extract_crime_data(APP_TOKEN=APP_TOKEN, start_time=start_time, end_time=end_time, limit=limit)
-            
-            print(f"Chicago Crime Data ELT - {counter} - Saving API data to parquet file - {start_time} - {end_time}")
-            load_crime_data_to_parquet(start_time=start_time, end_time=end_time, crime_df=crime_df)
+            crime_df = extract_crime_api(
+                APP_TOKEN=APP_TOKEN, 
+                column_name="date_of_occurrence",
+                start_time=start_time, 
+                end_time=end_time, 
+                limit=limit
+            )
 
             if counter==1:
                 # Extracting or generating supplemental data
@@ -436,7 +461,7 @@ if __name__ == "__main__":
                 police_table = create_police_table(engine=engine)
                 ward_table = create_ward_table(engine=engine)
 
-                # Loading data to database tables
+                # Loading data to supplemental database tables
                 print(f"Chicago Crime Data ELT - {counter} - Inserting data to supplemental tables")    
                 date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
                 load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
@@ -450,5 +475,35 @@ if __name__ == "__main__":
             print(f"Chicago Crime Data ELT - {counter} - Inserting crime data to crime table")
             crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
             load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
+    else:
+        print("Chicago Crime Data ELT - Database records exist - Checking for new updates")
+        max_api = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
+        max_table = get_max_update_time_crime_table(crime_table_name="stg_crime", engine=engine)
+        max_api_raw = datetime.strptime(max_api, '%Y-%m-%dT%H:%M:%S.%fZ')
+        max_table_raw = datetime.strptime(max_table, '%Y-%m-%dT%H:%M:%S.%fZ') 
+        
+        if max_api_raw > max_table_raw:
+            print("Chicago Crime Data ELT - New updates exist - Retrieving updated records")
+
+            # Configuring parameters in correct format
+            min_updated_at_val = max_table_raw + timedelta(milliseconds=1) # ensure that new data does not overlap with current data
+            start_time = min_updated_at_val.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
+            end_time = max_api[:-1]
+
+            print(f"Chicago Crime Data ELT - Extracting API - {start_time} - {end_time}")
+            crime_df = extract_crime_api(
+                APP_TOKEN=APP_TOKEN, 
+                column_name=":updated_at",
+                start_time=start_time, 
+                end_time=end_time, 
+                limit=limit
+            )
+            
+            print("Chicago Crime Data ELT - Upserting new updates to crime table")
+            crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
+            crime_table = create_crime_table(engine=engine) # does not re-create crime table in this case but returns table structure information
+            load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
+        else:
+            print("Chicago Crime Data ELT - No new records to upsert")
         
     print("Chicago Crime Data ELT - Success")
