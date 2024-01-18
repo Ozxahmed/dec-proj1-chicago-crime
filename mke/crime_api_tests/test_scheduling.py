@@ -19,6 +19,11 @@ while True:
     schedule.run_pending()
     time.sleep(1)
 
+##A schedule is set by doing `schedule.every(X).minute.do(job)`. When the schedule needs to execute, it will run the `job()` function.
+
+##The code above polls every second using `time.sleep(1)` to check if the job needs to be run.
+
+
 #We could use
 #Run export and load once a week for new updates
 def job1():
@@ -39,13 +44,9 @@ def job2():
     print("I'm working...")
 
     schedule.every().day.do(job)
-    #schedule.every().sunday.at("10:30").do(job)
 
 
 while True:
     schedule.run_pending()
     time.sleep(86400)
 
-##A schedule is set by doing `schedule.every(X).minute.do(job)`. When the schedule needs to execute, it will run the `job()` function.
-
-##The code above polls every second using `time.sleep(1)` to check if the job needs to be run.
