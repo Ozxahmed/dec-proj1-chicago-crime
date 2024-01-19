@@ -2,11 +2,12 @@ import requests
 import pandas as pd
 from dotenv import load_dotenv
 import os
-from sqlalchemy import create_engine, Table, Column, String, MetaData, inspect
+from sqlalchemy import create_engine, Table, Column, String, Integer, Float, DateTime, Date, MetaData, inspect
 from sqlalchemy.engine import URL
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine.base import Engine
 from datetime import datetime, timedelta
+
 
 def _generate_date_ranges(start_date:str, end_date:str, days_delta:int) -> list[dict[str, str]]:
     """
@@ -49,6 +50,7 @@ def _generate_date_ranges(start_date:str, end_date:str, days_delta:int) -> list[
 
     return date_ranges
 
+
 def get_min_date_crime_data(APP_TOKEN:str) -> str:
     """
     Retrieves the minimum value of the date_of_occurence field in the Chicago crimes dataset.
@@ -66,6 +68,7 @@ def get_min_date_crime_data(APP_TOKEN:str) -> str:
                             f"$$app_token={APP_TOKEN}"
                             f"&$select=min(date_of_occurrence)")
     return response.json()[0].get('min_date_of_occurrence')
+
 
 def get_max_date_crime_data(APP_TOKEN:str) -> str:
     """
@@ -85,6 +88,7 @@ def get_max_date_crime_data(APP_TOKEN:str) -> str:
                             f"&$select=max(date_of_occurrence)")
     return response.json()[0].get('max_date_of_occurrence')
     
+
 def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -> pd.DataFrame:
     """
     Extracts Chicago crimes data from API endpoint for a given date range.
@@ -140,9 +144,45 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
         i += 1
 
     crime_df = pd.json_normalize(data=response_data)
+    
+    return crime_df
 
-    # Drop unnecessary columns
-    crime_df = crime_df.drop(columns=[
+
+def transform_crime_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Perform data transformations on the input DataFrame.
+
+    Parameters:
+    - df (pd.DataFrame): Input DataFrame to be transformed.
+
+    Returns:
+    - pd.DataFrame: Transformed DataFrame.
+
+    Transformations:
+    1. Drop specified columns:
+        - ':@computed_region_awaf_s7ux', 
+        - ':@computed_region_6mkv_f3dw',
+        - ':@computed_region_vrxf_vc4k', 
+        - ':@computed_region_bdys_3d7i',
+        - ':@computed_region_43wa_7qmu', 
+        - ':@computed_region_rpca_8um6',
+        - 'location.latitude',
+        - 'location.longitude',
+        - 'location.human_address'
+
+    2. Rename columns based on the specified mapping:
+        - ':id' -> 'id'
+        - ':created_at' -> 'created_at'
+        - ':updated_at' -> 'updated_at'
+        - ':version' -> 'version'
+        - 'case_' -> 'case'
+        - '_iucr' -> 'iucr'
+        - '_primary_decsription' -> 'primary_description'
+        - '_secondary_description' -> 'secondary_description'
+        - '_location_description' -> 'location_description'
+    """
+    # Transformation 1: Drop columns
+    cols_to_drop = [
         ':@computed_region_awaf_s7ux', 
         ':@computed_region_6mkv_f3dw',
         ':@computed_region_vrxf_vc4k', 
@@ -151,22 +191,26 @@ def extract_crime_data(APP_TOKEN:str, start_time:str, end_time:str, limit:int) -
         ':@computed_region_rpca_8um6',
         'location.latitude',
         'location.longitude',
-        'location.human_address'])
-    
-    # Rename columns where applicable
-    crime_df = crime_df.rename(columns={
-        ":id": "id",
-        ":created_at": "created_at",
-        ":updated_at": "updated_at",
-        ":version": "version",
-        "case_": "case",
-        "_iucr": "iucr",
-        "_primary_decsription": "primary_description",
-        "_secondary_description": "secondary_description",
-        "_location_description": "location_description"
-    })
-    
-    return crime_df
+        'location.human_address'
+    ]
+    df = df.drop(columns=cols_to_drop)
+
+    # Transformation 2: Rename columns
+    col_mapping = {
+        ':id':'id',
+        ':created_at':'created_at',
+        ':updated_at':'updated_at',
+        ':version':'version',
+        'case_':'case',
+        '_iucr':'iucr',
+        '_primary_decsription':'primary_description',
+        '_secondary_description':'secondary_description',
+        '_location_description':'location_description',
+    }
+    df = df.rename(columns=col_mapping)
+
+    return df
+
 
 def load_crime_data_to_parquet(start_time:str, end_time:str, crime_df:pd.DataFrame) -> None:
     """ 
@@ -175,6 +219,7 @@ def load_crime_data_to_parquet(start_time:str, end_time:str, crime_df:pd.DataFra
     start_time_str = start_time.replace(":","-").replace(".","-")
     end_time_str = end_time.replace(":","-").replace(".","-")
     crime_df.to_parquet(f"data/crime_{start_time_str}_{end_time_str}.parquet", index=False)
+
 
 def generate_date_df(begin_date:str, end_date:str, holidays_data_path:list[str]) -> pd.DataFrame:
     """
@@ -221,6 +266,7 @@ def generate_date_df(begin_date:str, end_date:str, holidays_data_path:list[str])
 
     return pd.merge(left=date_df, right=holidays_df, on=["date"], how="left")
 
+
 def extract_csv(csv_file_path:str) -> pd.DataFrame:
     """
     Return a dataframe object with transformed columns based on a given CSV file path.
@@ -228,6 +274,7 @@ def extract_csv(csv_file_path:str) -> pd.DataFrame:
     df = pd.read_csv(csv_file_path)
     df.columns = [column.lower().replace(" ","_") for column in df.columns]
     return df
+
 
 def create_postgres_connection(username:str, password:str, host:str, port:int, database:str) -> Engine:
     """
@@ -243,6 +290,7 @@ def create_postgres_connection(username:str, password:str, host:str, port:int, d
 
     return create_engine(connection_url)
 
+
 def create_crime_table(engine:Engine) -> Table:
     """
     Create table for crimes data with applicable column names. 
@@ -250,29 +298,30 @@ def create_crime_table(engine:Engine) -> Table:
     meta = MetaData()
     table = Table(
         "stg_crime", meta, 
-        Column('id',String,primary_key=True),
-        Column('created_at',String),
-        Column('updated_at',String),
-        Column('version',String),
-        Column('case',String),
-        Column('date_of_occurrence',String),
-        Column('block',String),
-        Column('iucr',String),
-        Column('primary_description',String),
-        Column('secondary_description',String),
-        Column('location_description',String),
-        Column('arrest',String),
-        Column('domestic',String),
-        Column('beat',String),
-        Column('ward',String),
-        Column('fbi_cd',String),
-        Column('x_coordinate',String),
-        Column('y_coordinate',String),
-        Column('latitude',String),
-        Column('longitude',String)
+        Column("id", String, primary_key=True),
+        Column("created_at", DateTime(timezone=True)),
+        Column("updated_at", DateTime(timezone=True)),
+        Column("version", String),
+        Column("case", String),
+        Column("date_of_occurrence", DateTime(timezone="US/Central")),
+        Column("block", String),
+        Column("iucr", String),
+        Column("primary_description", String),
+        Column("secondary_description", String),
+        Column("location_description", String),
+        Column("arrest", String),
+        Column("domestic", String),
+        Column("beat", Integer),
+        Column("ward", Integer),
+        Column("fbi_cd", String),
+        Column("x_coordinate", String),
+        Column("y_coordinate", String),
+        Column("latitude", Float),
+        Column("longitude", Float)
     )
     meta.create_all(bind=engine)
     return table
+
 
 def create_date_table(engine:Engine) -> Table:
     """
@@ -281,17 +330,18 @@ def create_date_table(engine:Engine) -> Table:
     meta = MetaData()
     table = Table(
         "stg_date", meta, 
-        Column('date',String,primary_key=True),
-        Column('day',String),
-        Column('month',String),
+        Column('date',Date,primary_key=True),
+        Column('day',Integer),
+        Column('month',Integer),
         Column('month_name',String),
-        Column('year',String),
-        Column('day_of_week',String),
+        Column('year',Integer),
+        Column('day_of_week',Integer),
         Column('day_of_week_name',String),
         Column('holiday_name',String)
     )
     meta.create_all(bind=engine)
     return table
+
 
 def create_police_table(engine:Engine) -> Table:
     """
@@ -318,6 +368,7 @@ def create_police_table(engine:Engine) -> Table:
     )
     meta.create_all(bind=engine)
     return table
+
 
 def create_ward_table(engine:Engine) -> Table:
     """
@@ -347,6 +398,7 @@ def create_ward_table(engine:Engine) -> Table:
     meta.create_all(bind=engine)
     return table
 
+
 def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:Engine) -> None:
     """
     Upsert data incrementally (chunking) into specific postgres table. 
@@ -371,6 +423,7 @@ def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:En
             },
         )
         engine.execute(upsert_statement)
+
 
 if __name__ == "__main__":
     # Initializing environment variables and parameters
@@ -422,6 +475,9 @@ if __name__ == "__main__":
             
             print(f"Chicago Crime Data ELT - {counter} - Saving API data to parquet file - {start_time} - {end_time}")
             load_crime_data_to_parquet(start_time=start_time, end_time=end_time, crime_df=crime_df)
+
+            print(f"Chicago Crime Data ELT - {counter} - Transforming data - {start_time} - {end_time}")
+            crime_df = transform_crime_data(df=crime_df)
 
             if counter==1:
                 # Extracting or generating supplemental data
