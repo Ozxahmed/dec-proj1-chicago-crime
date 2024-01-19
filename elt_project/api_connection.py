@@ -409,7 +409,6 @@ if __name__ == "__main__":
     DATABASE_NAME = os.environ.get("DATABASE_NAME")
     PORT = os.environ.get("PORT")
 
-    end_date = get_max_date_crime_api(APP_TOKEN=APP_TOKEN)
     days_delta = 7
     limit = 1000
     holidays_begin_date = "2023-01-01"
@@ -429,20 +428,57 @@ if __name__ == "__main__":
     # Checking if database is empty (no tables and no records exist)
     print("Chicago Crime Data ELT - Inspecting database")
     inspector = inspect(engine)
+    
+    # Checking if ward table exists inside of database
+    if 'ward' not in inspector.get_table_names():
+        print(f"Chicago Crime Data ELT - Extracting ward data")
+        ward_df = extract_csv(csv_file_path="elt_project/data/Ward_Offices.csv")
 
-    if inspector.get_table_names() == []:
-        print("Chicago Crime Data ELT - Database empty - Retrieving records from beginning")
-        start_date = get_min_date_crime_api(APP_TOKEN=APP_TOKEN)
+        print(f"Chicago Crime Data ELT - Creating ward table")
+        ward_table = create_ward_table(engine=engine)
+
+        print(f"Chicago Crime Data ELT - Inserting data records to ward table") 
+        ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
+        load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
+
+    # Checking if police table exists inside of database
+    if 'police' not in inspector.get_table_names():
+        print(f"Chicago Crime Data ELT - Extracting police data")
+        police_df = extract_csv(csv_file_path="elt_project/data/Police_Stations.csv")
+
+        print(f"Chicago Crime Data ELT - Creating police table")
+        police_table = create_police_table(engine=engine)
+
+        print(f"Chicago Crime Data ELT - Inserting data records to police table")
+        police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
+        load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
+
+    # Checking if date table exists inside of database
+    if 'date' not in inspector.get_table_names():
+        print(f"Chicago Crime Data ELT - Generating date data")
+        date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
+
+        print(f"Chicago Crime Data ELT - Creating date table")
+        date_table = create_date_table(engine=engine)
+
+        print(f"Chicago Crime Data ELT - Inserting data records to date table")
+        date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
+        load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
+
+    # Checking if crime table exists inside of database
+    if 'crime' not in inspector.get_table_names():
+        print(f"Chicago Crime Data ELT - Creating crime table")
+        crime_table = create_crime_table(engine=engine)
 
         # Extracting crime data from beginning
+        start_date = get_min_date_crime_api(APP_TOKEN=APP_TOKEN)
+        end_date = get_max_date_crime_api(APP_TOKEN=APP_TOKEN)
         date_ranges = _generate_date_ranges(start_date=start_date, end_date=end_date, days_delta=days_delta)
-        counter = 0
         for date_range in date_ranges:
-            counter += 1
-
             start_time = date_range['start_time']
             end_time = date_range['end_time']
-            print(f"Chicago Crime Data ELT - {counter} - Extracting API - {start_time} - {end_time}")
+
+            print(f"Chicago Crime Data ELT - Extracting API - {start_time} - {end_time}")
             crime_df = extract_crime_api(
                 APP_TOKEN=APP_TOKEN, 
                 column_name="date_of_occurrence",
@@ -450,36 +486,12 @@ if __name__ == "__main__":
                 end_time=end_time, 
                 limit=limit
             )
-
-            if counter==1:
-                # Extracting or generating supplemental data
-                print(f"Chicago Crime Data ELT - {counter} - Extracting supplemental data")
-                date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
-                police_df = extract_csv(csv_file_path="elt_project/data/Police_Stations.csv")
-                ward_df = extract_csv(csv_file_path="elt_project/data/Ward_Offices.csv")
-
-                print(f"Chicago Crime Data ELT - {counter} - Creating database tables")
-                crime_table = create_crime_table(engine=engine)
-                date_table = create_date_table(engine=engine)
-                police_table = create_police_table(engine=engine)
-                ward_table = create_ward_table(engine=engine)
-
-                # Loading data to supplemental database tables
-                print(f"Chicago Crime Data ELT - {counter} - Inserting data to supplemental tables")    
-                date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
-                load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
-
-                police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
-                load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
-
-                ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
-                load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
     
-            print(f"Chicago Crime Data ELT - {counter} - Inserting crime data to crime table")
+            print(f"Chicago Crime Data ELT - Inserting data to crime table - {start_time} - {end_time}")
             crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
             load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
     else:
-        print("Chicago Crime Data ELT - Database records exist - Checking for new API updates")
+        print("Chicago Crime Data ELT - Crime table exists - Checking for new API updates")
         max_api = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
         max_table = get_max_update_time_crime_table(crime_table_name="crime", engine=engine)
         max_api_raw = datetime.strptime(max_api, '%Y-%m-%dT%H:%M:%S.%fZ')
