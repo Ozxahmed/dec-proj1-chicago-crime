@@ -188,7 +188,7 @@ def extract_crime_api(APP_TOKEN:str, column_name:str, start_time:str, end_time:s
     
     # Rename columns where applicable
     crime_df = crime_df.rename(columns={
-        ":id": "id",
+        ":id": "crime_id",
         ":created_at": "created_at",
         ":updated_at": "updated_at",
         ":version": "version",
@@ -274,8 +274,8 @@ def create_crime_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "stg_crime", meta, 
-        Column('id',String,primary_key=True),
+        "crime", meta, 
+        Column('crime_id',String,primary_key=True),
         Column('created_at',String),
         Column('updated_at',String),
         Column('version',String),
@@ -305,7 +305,7 @@ def create_date_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "stg_date", meta, 
+        "date", meta, 
         Column('date',String,primary_key=True),
         Column('day',String),
         Column('month',String),
@@ -324,7 +324,7 @@ def create_police_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "stg_police", meta,
+        "police", meta,
         Column('district',String,primary_key=True),
         Column('district_name',String),
         Column('address',String),
@@ -350,7 +350,7 @@ def create_ward_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "stg_ward", meta,
+        "ward", meta,
         Column('ward',String,primary_key=True),
         Column('alderman',String),
         Column('address',String),
@@ -479,9 +479,9 @@ if __name__ == "__main__":
             crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
             load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
     else:
-        print("Chicago Crime Data ELT - Database records exist - Checking for API updates")
+        print("Chicago Crime Data ELT - Database records exist - Checking for new API updates")
         max_api = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
-        max_table = get_max_update_time_crime_table(crime_table_name="stg_crime", engine=engine)
+        max_table = get_max_update_time_crime_table(crime_table_name="crime", engine=engine)
         max_api_raw = datetime.strptime(max_api, '%Y-%m-%dT%H:%M:%S.%fZ')
         max_table_raw = datetime.strptime(max_table, '%Y-%m-%dT%H:%M:%S.%fZ') 
         
@@ -504,7 +504,7 @@ if __name__ == "__main__":
             
             print("Chicago Crime Data ELT - Upserting new updates to crime table")
             crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
-            crime_table = create_crime_table(engine=engine) # does not re-create crime table in this case but returns table structure information
+            crime_table = create_crime_table(engine=engine) # does not re-create crime table in this case but returns table information
             load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
         else:
             print("Chicago Crime Data ELT - No new records to upsert")

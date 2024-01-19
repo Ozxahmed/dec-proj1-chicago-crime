@@ -27,7 +27,7 @@ def test_chicago_crimes_api_connection(setup):
     
     assert len(data) > 0 # asserts data records are retrieved
     assert list(data.columns) == [ # asserts column names are correct
-        'id',
+        'crime_id',
         'created_at',
         'updated_at',
         'version',
