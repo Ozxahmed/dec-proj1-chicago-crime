@@ -473,8 +473,8 @@ if __name__ == "__main__":
             print(f"Chicago Crime Data ELT - {counter} - Extracting API - {start_time} - {end_time}")
             crime_df = extract_crime_data(APP_TOKEN=APP_TOKEN, start_time=start_time, end_time=end_time, limit=limit)
             
-            # print(f"Chicago Crime Data ELT - {counter} - Saving API data to parquet file - {start_time} - {end_time}")
-            # load_crime_data_to_parquet(start_time=start_time, end_time=end_time, crime_df=crime_df)
+            print(f"Chicago Crime Data ELT - {counter} - Saving API data to parquet file - {start_time} - {end_time}")
+            load_crime_data_to_parquet(start_time=start_time, end_time=end_time, crime_df=crime_df)
 
             print(f"Chicago Crime Data ELT - {counter} - Transforming data - {start_time} - {end_time}")
             crime_df = transform_crime_data(df=crime_df)
