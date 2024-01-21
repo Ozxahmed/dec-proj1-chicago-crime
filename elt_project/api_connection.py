@@ -425,7 +425,7 @@ if __name__ == "__main__":
         port=PORT, 
         database=DATABASE_NAME)
     
-    # Checking if database is empty (no tables and no records exist)
+    # Checking what tables exist in database
     print("Chicago Crime Data ELT - Inspecting database")
     inspector = inspect(engine)
     
