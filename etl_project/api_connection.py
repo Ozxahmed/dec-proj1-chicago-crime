@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 from dotenv import load_dotenv
 import os
-from sqlalchemy import create_engine, Table, Column, String, Integer, Float, DateTime, Date, MetaData, inspect
+from sqlalchemy import create_engine, Table, Column, String, Integer, Float, JSON, DateTime, Date, MetaData, inspect
 from sqlalchemy.engine import URL
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine.base import Engine
@@ -145,7 +145,7 @@ def get_max_update_time_crime_api(APP_TOKEN:str) -> str:
                             f"&$select=max(:updated_at)")
     return response.json()[0].get('max_updated_at')
 
-def get_max_update_time_crime_table(crime_table_name:str, engine: Engine) -> datetime:
+def get_max_update_time_crime_table(crime_table_name:str, engine:Engine) -> datetime:
     """
     Returns maximum of value of the updated_at field from the Chicago crimes table in datetime format (UTC-adjusted).
     """
@@ -349,6 +349,45 @@ def create_postgres_connection(username:str, password:str, host:str, port:int, d
 
     return create_engine(connection_url)
 
+def create_logs_table(engine:Engine) -> Table:
+    """
+    Create table for pipeline metadata logs. 
+    """
+    meta = MetaData()
+    table = Table(
+        "logs", meta, 
+        Column('run_id',Integer,primary_key=True),
+        Column('status',String,primary_key=True),
+        Column('pipeline_name',String),
+        Column('timestamp',DateTime(timezone=True)),
+        Column('config',JSON),
+        Column('logs',String)
+    )
+    meta.create_all(bind=engine, checkfirst=True) # does not re-create table if it already exists
+    return table
+
+def get_logs_table_run_id(logs_table_name:str, engine: Engine) -> int:
+    """
+    Returns next run_id as int from logs table (current max of run_id column + 1).
+    """
+    select_max_run_id_query = f"select max(run_id) from {logs_table_name}"
+    max_run_id = [dict(row) for row in engine.execute(select_max_run_id_query).all()][0].get("max")
+    if max_run_id == None:
+        return 1
+    return max_run_id+1
+
+def create_logs_data(run_id:int, status:str, pipeline_name:str, config:dict, logs:str) -> list[dict]:
+    """
+    Returns a list[dict] object to be used as data argument in load_data_to_postgres function for inserting logs data to database.
+    """
+    return [{
+        "run_id":run_id, 
+        "status":status, 
+        "pipeline_name": pipeline_name, 
+        "timestamp":datetime.now(), 
+        "config": config, 
+        "logs":logs}]
+
 def create_crime_table(engine:Engine) -> Table:
     """
     Create table for crimes data with applicable column names. 
@@ -489,40 +528,50 @@ if __name__ == "__main__":
     sql_folder_path = "etl_project/sql" 
     log_folder_path = "etl_project/logs"
     pipeline_name = "Chicago Crime ETL"
-    log_table_name = "pipeline_logs"
+    crime_table_name = "crime_data"
+    logs_table_name = "logs"
 
-    # Instantiating logger for pipeline run
+    # Initializing environment variables
+    load_dotenv()
+    APP_TOKEN = os.environ.get("APP_TOKEN")
+    DB_USERNAME = os.environ.get("DB_USERNAME")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD")
+    SERVER_NAME = os.environ.get("SERVER_NAME")
+    DATABASE_NAME = os.environ.get("DATABASE_NAME")
+    PORT = os.environ.get("PORT")
+
+    # Connecting to postgres
+    engine = create_postgres_connection(
+        username=DB_USERNAME, 
+        password=DB_PASSWORD, 
+        host=SERVER_NAME, 
+        port=PORT, 
+        database=DATABASE_NAME)
+    
+    # Creating table in database for pipeline metadata logs (does not re-create table if it already exists)
+    logs_table = create_logs_table(engine=engine)
+
+    # Extracting next run_id value to be used for writing new records to metadata logs table
+    run_id = get_logs_table_run_id(logs_table_name=logs_table_name, engine=engine)
+
+    # Instantiating console logger for pipeline run
     pipeline_logging = PipelineLogging(pipeline_name=pipeline_name, log_folder_path=log_folder_path)
 
     # Try-except to log any errors during pipeline run
     try:
-        pipeline_start_time = time.time()
+        # Log pipeline start to logs table in postgres
+        logs_data = create_logs_data(run_id=run_id, status="start", pipeline_name=pipeline_name, config={}, logs=None)
+        load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
+
         pipeline_logging.logger.info("Pipeline start")
-
-        pipeline_logging.logger.info("Initializing environment variables")
-        load_dotenv()
-        APP_TOKEN = os.environ.get("APP_TOKEN")
-        DB_USERNAME = os.environ.get("DB_USERNAME")
-        DB_PASSWORD = os.environ.get("DB_PASSWORD")
-        SERVER_NAME = os.environ.get("SERVER_NAME")
-        DATABASE_NAME = os.environ.get("DATABASE_NAME")
-        PORT = os.environ.get("PORT")
-
-        # Connecting to postgres and creating database tables
-        pipeline_logging.logger.info("Connecting to pgAdmin")
-        engine = create_postgres_connection(
-            username=DB_USERNAME, 
-            password=DB_PASSWORD, 
-            host=SERVER_NAME, 
-            port=PORT, 
-            database=DATABASE_NAME)
+        pipeline_start_time = time.time()
         
         # Checking what tables exist in database
         pipeline_logging.logger.info("Inspecting database tables")
         inspector = inspect(engine)
         
         # Checking if ward table exists inside of database
-        if 'ward' not in inspector.get_table_names():
+        if 'ward_offices' not in inspector.get_table_names():
             pipeline_logging.logger.info("Extracting ward data")
             ward_df = extract_csv(csv_file_path="etl_project/data/Ward_Offices.csv")
 
@@ -534,7 +583,7 @@ if __name__ == "__main__":
             load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
 
         # Checking if police table exists inside of database
-        if 'police' not in inspector.get_table_names():
+        if 'police_stations' not in inspector.get_table_names():
             pipeline_logging.logger.info("Extracting police data")
             police_df = extract_csv(csv_file_path="etl_project/data/Police_Stations.csv")
 
@@ -558,7 +607,7 @@ if __name__ == "__main__":
             load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
 
         # Checking if crime table exists inside of database
-        if 'crime' not in inspector.get_table_names():
+        if 'crime_data' not in inspector.get_table_names():
             pipeline_logging.logger.info("Creating crime table")
             crime_table = create_crime_table(engine=engine)
 
@@ -588,7 +637,7 @@ if __name__ == "__main__":
         else:
             pipeline_logging.logger.info("Crime table exists - Checking for new API updates")
             max_api_str = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
-            max_table = get_max_update_time_crime_table(crime_table_name="crime_data", engine=engine)
+            max_table = get_max_update_time_crime_table(crime_table_name=crime_table_name, engine=engine)
             max_api = datetime.strptime(max_api_str, '%Y-%m-%dT%H:%M:%S.%fZ')
             
             if max_api > max_table:
@@ -639,9 +688,13 @@ if __name__ == "__main__":
         pipeline_logging.logger.info(f"Pipeline finished in {pipeline_run_time} seconds")
         pipeline_logging.logger.info("Successful pipeline run")
         
-        # Ensure logger handlers are cleared
-        pipeline_logging.logger.handlers.clear()
+        # Log pipeline successful run to logs table in postgres
+        logs_data = create_logs_data(run_id=run_id, status="success", pipeline_name=pipeline_name, config={}, logs=pipeline_logging.get_logs())
+        load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
+        pipeline_logging.logger.handlers.clear() # ensure logger handlers are cleared
 
     except BaseException as e:
         pipeline_logging.logger.error(f"Pipeline failed with exception {e}")
+        logs_data = create_logs_data(run_id=run_id, status="fail", pipeline_name=pipeline_name, config={}, logs=pipeline_logging.get_logs())
+        load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
         pipeline_logging.logger.handlers.clear()
