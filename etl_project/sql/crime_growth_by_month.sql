@@ -19,7 +19,7 @@ lag_crimes_by_month as (
 		calendar_month,
 		calendar_year,
 		crime_amount,
-		lag(crime_amount) over (order by calendar_month, calendar_year) as prev_month_crime_amount
+		lag(crime_amount) over (order by calendar_year, calendar_month) as prev_month_crime_amount
 	from crimes_by_month
 )
 select
