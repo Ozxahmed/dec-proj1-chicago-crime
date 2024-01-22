@@ -1,52 +1,46 @@
 #Need to add schedule library to requirements??
+#pip install schedule
 
+from dotenv import load_dotenv
+
+import requests
+import os
+import pytest
+from datetime import datetime
 import schedule
 import time
 
-#Example
-def job():
-    print("I'm working...")
+APP_TOKEN = os.environ.get("APP_TOKEN")
 
-schedule.every(10).minutes.do(job)
-schedule.every().hour.do(job)
-schedule.every().day.at("10:30").do(job)
-schedule.every().monday.do(job)
-schedule.every().wednesday.at("13:15").do(job)
-schedule.every().day.at("12:42", "Europe/Amsterdam").do(job)
-schedule.every().minute.at(":17").do(job)
+@pytest.fixture
+def get_max_date_crime_data(APP_TOKEN:str) -> str:
+    """
+    Retrieves the maximum value of the date_of_occurence field in the Chicago crimes dataset.
 
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+    Usage example:
+        get_max_date_crime_data(APP_TOKEN="abc123")
 
-##A schedule is set by doing `schedule.every(X).minute.do(job)`. When the schedule needs to execute, it will run the `job()` function.
+    Returns:
+        A str object with the date written in 'yyyy-mm-dd' format. 
 
-##The code above polls every second using `time.sleep(1)` to check if the job needs to be run.
-
-
-#We could use
-#Run export and load once a week for new updates
-def job1():
-    print("I'm working...")
-
-    schedule.every().sunday.do(job)
-    #schedule.every().sunday.at("10:30").do(job)
+    Args:
+        APP_TOKEN: provide a str with generated App Token credentials.
+    """
+    response = requests.get(f"https://data.cityofchicago.org/resource/x2n5-8w5q.json?"
+                            f"$$app_token={APP_TOKEN}"
+                            f"&$select=max(date_of_occurrence)")
+    return response.json()[0].get('max_date_of_occurrence')
 
 
-while True:
-    schedule.run_pending()
-    time.sleep(86400)
+def test_schedule_pipeline(job=get_max_date_crime_data):
+    
+    #schedule.every().day.do(test_get_max_date_crime_data)
+    schedule.every(1).minutes.do(job)
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
-#86400 seconds in a day
-#We could use
-#Run export and load once a day for any changes
-def job2():
-    print("I'm working...")
+#https://schedule.readthedocs.io/en/stable/
 
-    schedule.every().day.do(job)
-
-
-while True:
-    schedule.run_pending()
-    time.sleep(86400)
 

@@ -12,6 +12,8 @@ from sqlalchemy.schema import CreateTable
 from sqlalchemy import inspect
 import pytest
 
+load_dotenv()
+
 DB_USERNAME = os.environ.get("DB_USERNAME")
 DB_PASSWORD = os.environ.get("DB_PASSWORD")
 SERVER_NAME = os.environ.get("SERVER_NAME")
@@ -46,6 +48,6 @@ def test_inspect_database(connect_to_postgres):
     else:
         print(inspector.get_table_names())
 
-    print(inspector.get_table_names())
+    return inspector.get_table_names()
 
 
