@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 import schedule
 import time
 import logging
+import yaml
+from pathlib import Path
 
 class PipelineLogging:
     """
@@ -518,18 +520,25 @@ def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:En
         engine.execute(upsert_statement)
 
 if __name__ == "__main__":
+    # Extact configuration parameters
+    yaml_file_path = __file__.replace(".py", ".yaml")
+    if Path(yaml_file_path).exists():
+        with open(yaml_file_path) as yaml_file:
+            yaml_contents = yaml.safe_load(yaml_file)
+            config = yaml_contents.get("config")
+            pipeline_name = yaml_contents.get("name")
+
     # Initializing parameters
-    days_delta = 7
-    limit = 1000
-    holidays_begin_date = "2023-01-01"
-    holidays_end_date = "2024-12-31" 
-    holidays_data_path = ['etl_project/data/holidays/2023.csv', 'etl_project/data/holidays/2024.csv']
-    chunksize = 1000
-    sql_folder_path = "etl_project/sql" 
-    log_folder_path = "etl_project/logs"
-    pipeline_name = "Chicago Crime ETL"
-    crime_table_name = "crime_data"
-    logs_table_name = "logs"
+    days_delta = config.get("days_delta")
+    limit = config.get("limit")
+    chunksize = config.get("chunksize")
+    holidays_begin_date = config.get("holidays_begin_date")
+    holidays_end_date = config.get("holidays_end_date") 
+    holidays_data_path = config.get("holidays_data_path")
+    sql_folder_path = config.get("sql_folder_path")
+    log_folder_path = config.get("log_folder_path")
+    crime_table_name = config.get("crime_table_name")
+    logs_table_name = config.get("logs_table_name")
 
     # Initializing environment variables
     load_dotenv()
@@ -560,7 +569,7 @@ if __name__ == "__main__":
     # Try-except to log any errors during pipeline run
     try:
         # Log pipeline start to logs table in postgres
-        logs_data = create_logs_data(run_id=run_id, status="start", pipeline_name=pipeline_name, config={}, logs=None)
+        logs_data = create_logs_data(run_id=run_id, status="start", pipeline_name=pipeline_name, config=config, logs=None)
         load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
 
         pipeline_logging.logger.info("Pipeline start")
@@ -689,12 +698,12 @@ if __name__ == "__main__":
         pipeline_logging.logger.info("Successful pipeline run")
         
         # Log pipeline successful run to logs table in postgres
-        logs_data = create_logs_data(run_id=run_id, status="success", pipeline_name=pipeline_name, config={}, logs=pipeline_logging.get_logs())
+        logs_data = create_logs_data(run_id=run_id, status="success", pipeline_name=pipeline_name, config=config, logs=pipeline_logging.get_logs())
         load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
         pipeline_logging.logger.handlers.clear() # ensure logger handlers are cleared
 
     except BaseException as e:
         pipeline_logging.logger.error(f"Pipeline failed with exception {e}")
-        logs_data = create_logs_data(run_id=run_id, status="fail", pipeline_name=pipeline_name, config={}, logs=pipeline_logging.get_logs())
+        logs_data = create_logs_data(run_id=run_id, status="fail", pipeline_name=pipeline_name, config=config, logs=pipeline_logging.get_logs())
         load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
         pipeline_logging.logger.handlers.clear()
