@@ -297,7 +297,7 @@ def create_crime_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "stg_crime", meta, 
+        "crime_data", meta, 
         Column("id", String, primary_key=True),
         Column("created_at", DateTime(timezone=True)),
         Column("updated_at", DateTime(timezone=True)),
@@ -323,13 +323,13 @@ def create_crime_table(engine:Engine) -> Table:
     return table
 
 
-def create_date_table(engine:Engine) -> Table:
+def create_calendar_table(engine:Engine) -> Table:
     """
     Create table for 2023 and 2024 dates and holiday data. 
     """
     meta = MetaData()
     table = Table(
-        "stg_date", meta, 
+        "calendar", meta, 
         Column('date',Date,primary_key=True),
         Column('day',Integer),
         Column('month',Integer),
@@ -349,21 +349,21 @@ def create_police_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "stg_police", meta,
+        "police_stations", meta,
         Column('district',String,primary_key=True),
         Column('district_name',String),
         Column('address',String),
         Column('city',String),
         Column('state',String),
-        Column('zip',String),
+        Column('zip',Integer),
         Column('website',String),
         Column('phone',String),
         Column('fax',String),
         Column('tty',String),
-        Column('x_coordinate',String),
-        Column('y_coordinate',String),
-        Column('latitude',String),
-        Column('longitude',String),
+        Column('x_coordinate',Float),
+        Column('y_coordinate',Float),
+        Column('latitude',Float),
+        Column('longitude',Float),
         Column('location',String)
     )
     meta.create_all(bind=engine)
@@ -376,8 +376,8 @@ def create_ward_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "stg_ward", meta,
-        Column('ward',String,primary_key=True),
+        "ward_offices", meta,
+        Column('ward',Integer,primary_key=True),
         Column('alderman',String),
         Column('address',String),
         Column('city',String),
@@ -391,7 +391,7 @@ def create_ward_table(engine:Engine) -> Table:
         Column('city_hall_address',String),
         Column('city_hall_city',String),
         Column('city_hall_state',String),
-        Column('city_hall_zipcode',String),
+        Column('city_hall_zipcode',Integer),
         Column('city_hall_phone',String),
         Column('photo_link',String)
     )
@@ -488,7 +488,7 @@ if __name__ == "__main__":
 
                 print(f"Chicago Crime Data ELT - {counter} - Creating database tables")
                 crime_table = create_crime_table(engine=engine)
-                date_table = create_date_table(engine=engine)
+                date_table = create_calendar_table(engine=engine)
                 police_table = create_police_table(engine=engine)
                 ward_table = create_ward_table(engine=engine)
 
