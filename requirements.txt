@@ -6,3 +6,4 @@ pyarrow==14.0.1
 pytest==7.1.2
 SQLAlchemy==1.4.39
 pg8000==1.29.1
+schedule==1.1.0
