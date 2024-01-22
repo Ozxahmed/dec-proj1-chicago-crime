@@ -7,6 +7,48 @@ from sqlalchemy.engine import URL
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine.base import Engine
 from datetime import datetime, timedelta, timezone
+import schedule
+import time
+import logging
+
+class PipelineLogging:
+    """
+    Creates logging object with specific format and file name to log pipeline run. 
+
+    Usage example:
+        PipelineLogging(pipeline_name="Chicago Crime ETL", log_folder_path="./logs")
+
+    Args:
+        pipeline_name: provide a str indicating preferred name for pipeline.
+        log_folder_path: provide a str indicating the path of the folder to which log files will be written.
+    """
+    def __init__(self, pipeline_name: str, log_folder_path: str):
+        self.pipeline_name = pipeline_name
+        self.log_folder_path = log_folder_path
+        logger = logging.getLogger(pipeline_name)
+        logger.setLevel(logging.INFO)
+        self.file_path = (
+            f"{self.log_folder_path}/{time.time()}.log" 
+        )
+        file_handler = logging.FileHandler(self.file_path)
+        file_handler.setLevel(logging.INFO)
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        file_handler.setFormatter(formatter)
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logger.addHandler(stream_handler)
+        self.logger = logger
+
+    def get_logs(self) -> str:
+        """
+        Returns contents of log file as str object.
+        """
+        with open(self.file_path, "r") as file:
+            return "".join(file.readlines())
 
 def _generate_date_ranges(start_date:str, end_date:str, days_delta:int) -> list[dict[str, str]]:
     """
@@ -437,150 +479,168 @@ def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:En
         engine.execute(upsert_statement)
 
 if __name__ == "__main__":
-    # Initializing environment variables and parameters
-    print("Chicago Crime Data ETL - Pipeline start")
-    print("Chicago Crime Data ETL - Initializing parameters and environment variables")
-    load_dotenv()
-    APP_TOKEN = os.environ.get("APP_TOKEN")
-    DB_USERNAME = os.environ.get("DB_USERNAME")
-    DB_PASSWORD = os.environ.get("DB_PASSWORD")
-    SERVER_NAME = os.environ.get("SERVER_NAME")
-    DATABASE_NAME = os.environ.get("DATABASE_NAME")
-    PORT = os.environ.get("PORT")
-
+    # Initializing parameters
     days_delta = 7
     limit = 1000
     holidays_begin_date = "2023-01-01"
     holidays_end_date = "2024-12-31" 
     holidays_data_path = ['etl_project/data/holidays/2023.csv', 'etl_project/data/holidays/2024.csv']
     chunksize = 1000
-
     sql_folder_path = "etl_project/sql" 
+    log_folder_path = "etl_project/logs"
+    pipeline_name = "Chicago Crime ETL"
 
-    # Connecting to postgres and creating database tables
-    print("Chicago Crime Data ETL - Connecting to pgAdmin")
-    engine = create_postgres_connection(
-        username=DB_USERNAME, 
-        password=DB_PASSWORD, 
-        host=SERVER_NAME, 
-        port=PORT, 
-        database=DATABASE_NAME)
-    
-    # Checking what tables exist in database
-    print("Chicago Crime Data ETL - Inspecting database tables")
-    inspector = inspect(engine)
-    
-    # Checking if ward table exists inside of database
-    if 'ward' not in inspector.get_table_names():
-        print(f"Chicago Crime Data ETL - Extracting ward data")
-        ward_df = extract_csv(csv_file_path="etl_project/data/Ward_Offices.csv")
+    # Instantiating logger for pipeline run
+    pipeline_logging = PipelineLogging(pipeline_name=pipeline_name, log_folder_path=log_folder_path)
 
-        print(f"Chicago Crime Data ETL - Creating ward table")
-        ward_table = create_ward_table(engine=engine)
+    # Try-except to log pipeline run error  
+    try:
+        pipeline_start_time = time.time()
+        pipeline_logging.logger.info("Pipeline start")
 
-        print(f"Chicago Crime Data ETL - Inserting data records to ward table") 
-        ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
-        load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
+        pipeline_logging.logger.info("Initializing environment variables")
+        load_dotenv()
+        APP_TOKEN = os.environ.get("APP_TOKEN")
+        DB_USERNAME = os.environ.get("DB_USERNAME")
+        DB_PASSWORD = os.environ.get("DB_PASSWORD")
+        SERVER_NAME = os.environ.get("SERVER_NAME")
+        DATABASE_NAME = os.environ.get("DATABASE_NAME")
+        PORT = os.environ.get("PORT")
 
-    # Checking if police table exists inside of database
-    if 'police' not in inspector.get_table_names():
-        print(f"Chicago Crime Data ETL - Extracting police data")
-        police_df = extract_csv(csv_file_path="etl_project/data/Police_Stations.csv")
-
-        print(f"Chicago Crime Data ETL - Creating police table")
-        police_table = create_police_table(engine=engine)
-
-        print(f"Chicago Crime Data ETL - Inserting data records to police table")
-        police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
-        load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
-
-    # Checking if date table exists inside of database
-    if 'date' not in inspector.get_table_names():
-        print(f"Chicago Crime Data ETL - Generating date data")
-        date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
-
-        print(f"Chicago Crime Data ETL - Creating date table")
-        date_table = create_date_table(engine=engine)
-
-        print(f"Chicago Crime Data ETL - Inserting data records to date table")
-        date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
-        load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
-
-    # Checking if crime table exists inside of database
-    if 'crime' not in inspector.get_table_names():
-        print(f"Chicago Crime Data ETL - Creating crime table")
-        crime_table = create_crime_table(engine=engine)
-
-        # Extracting crime data from beginning
-        start_date = get_min_date_crime_api(APP_TOKEN=APP_TOKEN)
-        end_date = get_max_date_crime_api(APP_TOKEN=APP_TOKEN)
-        date_ranges = _generate_date_ranges(start_date=start_date, end_date=end_date, days_delta=days_delta)
-        for date_range in date_ranges:
-            start_time = date_range['start_time']
-            end_time = date_range['end_time']
-
-            print(f"Chicago Crime Data ETL - Extracting API data - {start_time} - {end_time}")
-            crime_df = extract_crime_api(
-                APP_TOKEN=APP_TOKEN, 
-                column_name="date_of_occurrence",
-                start_time=start_time, 
-                end_time=end_time, 
-                limit=limit
-            )
-
-            print(f"Chicago Crime Data ETL - Transforming API data - {start_time} - {end_time}")
-            crime_df = transform_crime_data(df=crime_df)
-
-            print(f"Chicago Crime Data ETL - Loading API data - {start_time} - {end_time}")
-            crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
-            load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
-    else:
-        print("Chicago Crime Data ETL - Crime table exists - Checking for new API updates")
-        max_api_str = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
-        max_table = get_max_update_time_crime_table(crime_table_name="crime", engine=engine)
-        max_api = datetime.strptime(max_api_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        # Connecting to postgres and creating database tables
+        pipeline_logging.logger.info("Connecting to pgAdmin")
+        engine = create_postgres_connection(
+            username=DB_USERNAME, 
+            password=DB_PASSWORD, 
+            host=SERVER_NAME, 
+            port=PORT, 
+            database=DATABASE_NAME)
         
-        if max_api > max_table:
-            print("Chicago Crime Data ETL - New updates exist - Retrieving updated records from API")
+        # Checking what tables exist in database
+        pipeline_logging.logger.info("Inspecting database tables")
+        inspector = inspect(engine)
+        
+        # Checking if ward table exists inside of database
+        if 'ward' not in inspector.get_table_names():
+            pipeline_logging.logger.info("Extracting ward data")
+            ward_df = extract_csv(csv_file_path="etl_project/data/Ward_Offices.csv")
 
-            # Configuring parameters in correct format
-            min_updated_at_val = max_table + timedelta(milliseconds=1) # ensure that new data does not overlap with current data
-            start_time = min_updated_at_val.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
-            end_time = max_api_str[:-1]
+            pipeline_logging.logger.info("Creating ward table")
+            ward_table = create_ward_table(engine=engine)
 
-            print(f"Chicago Crime Data ETL - Extracting API data - {start_time} - {end_time}")
-            crime_df = extract_crime_api(
-                APP_TOKEN=APP_TOKEN, 
-                column_name=":updated_at",
-                start_time=start_time, 
-                end_time=end_time, 
-                limit=limit
-            )
+            pipeline_logging.logger.info("Inserting data records to ward table") 
+            ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
+            load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
 
-            print(f"Chicago Crime Data ETL - Transforming API data - {start_time} - {end_time}")
-            crime_df = transform_crime_data(df=crime_df)
+        # Checking if police table exists inside of database
+        if 'police' not in inspector.get_table_names():
+            pipeline_logging.logger.info("Extracting police data")
+            police_df = extract_csv(csv_file_path="etl_project/data/Police_Stations.csv")
+
+            pipeline_logging.logger.info("Creating police table")
+            police_table = create_police_table(engine=engine)
+
+            pipeline_logging.logger.info("Inserting data records to police table")
+            police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
+            load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
+
+        # Checking if date table exists inside of database
+        if 'date' not in inspector.get_table_names():
+            pipeline_logging.logger.info("Generating date data")
+            date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
+
+            pipeline_logging.logger.info("Creating date table")
+            date_table = create_date_table(engine=engine)
+
+            pipeline_logging.logger.info("Inserting data records to date table")
+            date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
+            load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
+
+        # Checking if crime table exists inside of database
+        if 'crime' not in inspector.get_table_names():
+            pipeline_logging.logger.info("Creating crime table")
+            crime_table = create_crime_table(engine=engine)
+
+            # Extracting crime data from beginning
+            start_date = get_min_date_crime_api(APP_TOKEN=APP_TOKEN)
+            end_date = get_max_date_crime_api(APP_TOKEN=APP_TOKEN)
+            date_ranges = _generate_date_ranges(start_date=start_date, end_date=end_date, days_delta=days_delta)
+            for date_range in date_ranges:
+                start_time = date_range['start_time']
+                end_time = date_range['end_time']
+
+                pipeline_logging.logger.info(f"Extracting API data - {start_time} - {end_time}")
+                crime_df = extract_crime_api(
+                    APP_TOKEN=APP_TOKEN, 
+                    column_name="date_of_occurrence",
+                    start_time=start_time, 
+                    end_time=end_time, 
+                    limit=limit
+                )
+
+                pipeline_logging.logger.info(f"Transforming API data - {start_time} - {end_time}")
+                crime_df = transform_crime_data(df=crime_df)
+
+                pipeline_logging.logger.info(f"Loading API data - {start_time} - {end_time}")
+                crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
+                load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
+        else:
+            pipeline_logging.logger.info("Crime table exists - Checking for new API updates")
+            max_api_str = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
+            max_table = get_max_update_time_crime_table(crime_table_name="crime", engine=engine)
+            max_api = datetime.strptime(max_api_str, '%Y-%m-%dT%H:%M:%S.%fZ')
             
-            print("Chicago Crime Data ETL - Upserting new updates to crime table")
-            crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
-            crime_table = create_crime_table(engine=engine) # does not re-create crime table in this case but returns table information
-            load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
-        else:
-            print("Chicago Crime Data ETL - No new records to upsert")
+            if max_api > max_table:
+                pipeline_logging.logger.info("New updates exist - Retrieving updated records from API")
+
+                # Configuring parameters in correct format
+                min_updated_at_val = max_table + timedelta(milliseconds=1) # ensure that new data does not overlap with current data
+                start_time = min_updated_at_val.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
+                end_time = max_api_str[:-1]
+
+                pipeline_logging.logger.info(f"Extracting API data - {start_time} - {end_time}")
+                crime_df = extract_crime_api(
+                    APP_TOKEN=APP_TOKEN, 
+                    column_name=":updated_at",
+                    start_time=start_time, 
+                    end_time=end_time, 
+                    limit=limit
+                )
+
+                pipeline_logging.logger.info(f"Transforming API data - {start_time} - {end_time}")
+                crime_df = transform_crime_data(df=crime_df)
+                
+                pipeline_logging.logger.info("Upserting new updates to crime table")
+                crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
+                crime_table = create_crime_table(engine=engine) # does not re-create crime table in this case but returns table information
+                load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
+            else:
+                pipeline_logging.logger.info("No new records to upsert")
+            
+        # Checking what views exist in database
+        pipeline_logging.logger.info("Inspecting database views")
+        inspector = inspect(engine)
         
-    # Checking what views exist in database
-    print("Chicago Crime Data ETL - Inspecting database views")
-    inspector = inspect(engine)
-    
-    for sql_file in os.listdir(sql_folder_path):
-        view = sql_file.split(".")[0] # name of view to match the name of the sql file
+        for sql_file in os.listdir(sql_folder_path):
+            view = sql_file.split(".")[0] # name of view to match the name of the sql file
 
-        if view not in inspector.get_view_names():
-            print(f"Chicago Crime Data ETL - View {view} does not exist - Creating view")
-            with open(f'{sql_folder_path}/{sql_file}', 'r') as f:
-                sql_query = f.read()
-                engine.execute(f"create view {view} as {sql_query};")
-                print(f"Chicago Crime Data ETL - Successfully created view {view}")
-        else:
-            print(f"Chicago Crime Data ETL - View {view} already exists in database")
+            if view not in inspector.get_view_names():
+                pipeline_logging.logger.info(f"View {view} does not exist - Creating view")
+                with open(f'{sql_folder_path}/{sql_file}', 'r') as f:
+                    sql_query = f.read()
+                    engine.execute(f"create view {view} as {sql_query};")
+                    pipeline_logging.logger.info(f"Successfully created view {view}")
+            else:
+                pipeline_logging.logger.info(f"View {view} already exists in database")\
 
-    print("Chicago Crime Data ETL - Success")
+        pipeline_end_time = time.time()
+        pipeline_run_time = pipeline_end_time - pipeline_start_time
+        pipeline_logging.logger.info(f"Pipeline finished in {pipeline_run_time} seconds")
+        pipeline_logging.logger.info("Successful pipeline run")
+        
+        # Ensure logger handlers are cleared
+        pipeline_logging.logger.handlers.clear()
+
+    except BaseException as e:
+        pipeline_logging.logger.error(f"Pipeline failed with exception {e}")
+        pipeline_logging.logger.handlers.clear()
