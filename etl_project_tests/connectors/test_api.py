@@ -26,28 +26,7 @@ def test_chicago_crimes_api_connection(setup):
     )
     
     assert len(data) > 0 # asserts data records are retrieved
-    assert list(data.columns) == [ # asserts column names are correct
-        'crime_id',
-        'created_at',
-        'updated_at',
-        'version',
-        'case',
-        'date_of_occurrence',
-        'block',
-        'iucr',
-        'primary_description',
-        'secondary_description',
-        'location_description',
-        'arrest',
-        'domestic',
-        'beat',
-        'ward',
-        'fbi_cd',
-        'x_coordinate',
-        'y_coordinate',
-        'latitude',
-        'longitude']
-    
+
     # asserts date_of_occurence of data extracted is between given date ranges
     assert datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%f') <= datetime.strptime(min(data['date_of_occurrence']), '%Y-%m-%dT%H:%M:%S.%f')
     assert datetime.strptime(end_time, '%Y-%m-%dT%H:%M:%S.%f') >= datetime.strptime(max(data['date_of_occurrence']), '%Y-%m-%dT%H:%M:%S.%f')

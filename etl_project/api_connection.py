@@ -536,17 +536,17 @@ if __name__ == "__main__":
             load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
     else:
         print("Chicago Crime Data ETL - Crime table exists - Checking for new API updates")
-        max_api = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
+        max_api_str = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
         max_table = get_max_update_time_crime_table(crime_table_name="crime", engine=engine)
-        max_api_raw = datetime.strptime(max_api, '%Y-%m-%dT%H:%M:%S.%fZ')
+        max_api = datetime.strptime(max_api_str, '%Y-%m-%dT%H:%M:%S.%fZ')
         
-        if max_api_raw > max_table:
+        if max_api > max_table:
             print("Chicago Crime Data ETL - New updates exist - Retrieving updated records from API")
 
             # Configuring parameters in correct format
             min_updated_at_val = max_table + timedelta(milliseconds=1) # ensure that new data does not overlap with current data
             start_time = min_updated_at_val.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
-            end_time = max_api[:-1]
+            end_time = max_api_str[:-1]
 
             print(f"Chicago Crime Data ETL - Extracting API data - {start_time} - {end_time}")
             crime_df = extract_crime_api(
