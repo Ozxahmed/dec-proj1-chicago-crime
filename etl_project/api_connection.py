@@ -11,63 +11,6 @@ import schedule
 import time
 import logging
 
-class MetaDataLogging:
-    def __init__(
-        self,
-        pipeline_name: str,
-        postgresql_client: PostgreSqlClient,
-        config: dict = {},
-        log_table_name: str = "pipeline_logs",
-    ):
-        self.pipeline_name = pipeline_name
-        self.log_table_name = log_table_name
-        self.postgresql_client = postgresql_client
-        self.config = config
-        self.metadata = MetaData()
-        self.table = Table(
-            self.log_table_name,
-            self.metadata,
-            Column("pipeline_name", String, primary_key=True),
-            Column("run_id", Integer, primary_key=True),
-            Column("timestamp", String, primary_key=True),
-            Column("status", String, primary_key=True),
-            Column("config", JSON),
-            Column("logs", String),
-        )
-        self.run_id: int = self._get_run_id()
-
-    def _create_log_table(self) -> None:
-        """Create log table if it does not exist."""
-        self.postgresql_client.create_all_tables(metadata=self.metadata)
-
-    def _get_run_id(self):
-        """Gets the next run id. Sets run id to 1 if no run id exists."""
-        self._create_log_table()
-        run_id = self.postgresql_client.engine.execute(
-            select(func.max(self.table.c.run_id)).where(
-                self.table.c.pipeline_name == self.pipeline_name
-            )
-        ).first()[0]
-        if run_id is None:
-            return 1
-        else:
-            return run_id + 1
-
-    def log(self, status:str, timestamp:datetime, logs:str) -> None:
-        """Writes pipeline metadata log to a database"""
-        if timestamp is None:
-            timestamp = datetime.now()
-        insert_statement = insert(self.table).values(
-            pipeline_name=self.pipeline_name,
-            timestamp=timestamp,
-            run_id=self.run_id,
-            status=status,
-            config=self.config,
-            logs=logs,
-        )
-        self.postgresql_client.engine.execute(insert_statement)
-
-
 class PipelineLogging:
     """
     Creates logging object with specific format and file name to log pipeline run. 
@@ -412,7 +355,7 @@ def create_crime_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "crime", meta, 
+        "crime_data", meta, 
         Column("crime_id", String, primary_key=True),
         Column("created_at", DateTime(timezone=True)),
         Column("updated_at", DateTime(timezone=True)),
@@ -462,7 +405,7 @@ def create_police_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "police", meta,
+        "police_stations", meta,
         Column('district',String,primary_key=True),
         Column('district_name',String),
         Column('address',String),
@@ -488,7 +431,7 @@ def create_ward_table(engine:Engine) -> Table:
     """
     meta = MetaData()
     table = Table(
-        "ward", meta,
+        "ward_offices", meta,
         Column('ward',Integer,primary_key=True),
         Column('alderman',String),
         Column('address',String),
@@ -645,7 +588,7 @@ if __name__ == "__main__":
         else:
             pipeline_logging.logger.info("Crime table exists - Checking for new API updates")
             max_api_str = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
-            max_table = get_max_update_time_crime_table(crime_table_name="crime", engine=engine)
+            max_table = get_max_update_time_crime_table(crime_table_name="crime_data", engine=engine)
             max_api = datetime.strptime(max_api_str, '%Y-%m-%dT%H:%M:%S.%fZ')
             
             if max_api > max_table:

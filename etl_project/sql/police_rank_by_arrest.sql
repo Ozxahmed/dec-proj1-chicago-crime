@@ -8,9 +8,9 @@ with arrest_count as (
 		p.phone,
 		count(c.crime_id) as total_arrests
 	from 
-		police p
+		police_stations p
 	inner join 
-		crime c
+		crime_data c
 	on 
 		p.district =  cast(floor(c.beat/100.0) as varchar)
 	where
@@ -24,9 +24,9 @@ total_count as (
 		p.district,
 		count(c.crime_id) as total_crimes
 	from 
-		police p
+		police_stations p
 	inner join 
-		crime c
+		crime_data c
 	on 
 		p.district =  cast(floor(c.beat/100.0) as varchar)
 	group by

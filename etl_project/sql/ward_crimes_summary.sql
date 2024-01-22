@@ -14,9 +14,9 @@ with dist_popular_crimes as (
 			rows between unbounded preceding and unbounded following
 			) as second_most_popular_crime
 	from 
-		ward w
+		ward_offices w
 	inner join 
-		crime c 
+		crime_data c 
 	on 
 		c.ward=w.ward
 	group by
@@ -29,9 +29,9 @@ dist_total_crimes as (
 		count(c.crime_id) as total_crimes,
 		dense_rank() over(order by count(c.crime_id) desc) as total_crimes_rank
 	from 
-		crime c
+		crime_data c
 	inner join
-		ward w
+		ward_offices w
 	on 
 		c.ward=w.ward
 	group by

@@ -5,7 +5,7 @@ with crimes_by_month as (
 		date_part('month',c.date_of_occurrence)  as calendar_month,
 		date_part('year',c.date_of_occurrence)  as calendar_year
 	from 
-		crime c
+		crime_data c
 	inner join 
 		date d
 	on 

@@ -7,7 +7,7 @@ with crimes_by_day as (
 			then 'Y' else 'N'
 		end) as holiday
 	from 
-		crime c
+		crime_data c
 	inner join 
 		date d
 	on 
