@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 import schedule
 import time
 import logging
+import yaml
+from pathlib import Path
 
 class PipelineLogging:
     """
@@ -517,20 +519,56 @@ def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:En
         )
         engine.execute(upsert_statement)
 
+# set schedule
+    schedule.every(pipeline_config.get("schedule").get("run_seconds")).seconds.do(
+        run_pipeline_schedule,
+        pipeline_name=PIPELINE_NAME,
+        postgresql_logging_client=postgresql_logging_client,
+        pipeline_config=pipeline_config,
+    )
+
+    while True:
+        schedule.run_pending()
+        time.sleep(pipeline_config.get("schedule").get("poll_seconds"))
+
 if __name__ == "__main__":
     # Initializing parameters
-    days_delta = 7
-    limit = 1000
-    holidays_begin_date = "2023-01-01"
-    holidays_end_date = "2024-12-31" 
-    holidays_data_path = ['data/holidays/2023.csv', 'data/holidays/2024.csv']
-    chunksize = 1000
-    sql_folder_path = "sql" 
-    #change from etl_project/logs
-    log_folder_path = "logs"
-    pipeline_name = "Chicago Crime ETL"
-    crime_table_name = "crime_data"
-    logs_table_name = "logs"
+    # days_delta = 7
+    # limit = 1000
+    # holidays_begin_date = "2023-01-01"
+    # holidays_end_date = "2024-12-31" 
+    # holidays_data_path = ['data/holidays/2023.csv', 'data/holidays/2024.csv']
+    # chunksize = 1000
+    # sql_folder_path = "sql" 
+    # log_folder_path = "logs"
+    # pipeline_name = "Chicago Crime ETL"
+    # crime_table_name = "crime_data"
+    # logs_table_name = "logs"
+
+    # get config variables
+    yaml_file_path = __file__.replace(".py", ".yaml")
+    if Path(yaml_file_path).exists():
+        with open(yaml_file_path) as yaml_file:
+            pipeline_config = yaml.safe_load(yaml_file)
+            PIPELINE_NAME = pipeline_config.get("name")
+    else:
+        raise Exception(
+            f"Missing {yaml_file_path} file! Please create the yaml file with at least a `name` key for the pipeline name."
+        )
+    
+    config=pipeline_config.get("config")
+
+    days_delta=config.get("days_delta")
+    limit=config.get("limit")
+    holidays_begin_date=config.get("holidays_begin_date")
+    holidays_end_date=config.get("holidays_end_date")
+    holidays_data_path=config.get("holidays_data_path")
+    chunksize=config.get("chunksize")
+    sql_folder_path=config.get("sql_folder_path")
+    log_folder_path=config.get("log_folder_path")
+    pipeline_name=config.get("pipeline_name")
+    crime_table_name=config.get("crime_table_name")
+    logs_table_name=config.get("logs_table_name")
 
     # Initializing environment variables
     load_dotenv()
@@ -559,6 +597,7 @@ if __name__ == "__main__":
     pipeline_logging = PipelineLogging(pipeline_name=pipeline_name, log_folder_path=log_folder_path)
 
     # Try-except to log any errors during pipeline run
+
     try:
         # Log pipeline start to logs table in postgres
         logs_data = create_logs_data(run_id=run_id, status="start", pipeline_name=pipeline_name, config={}, logs=None)
