@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 import schedule
 import time
 import logging
+import yaml
+from pathlib import Path
 
 class PipelineLogging:
     """
@@ -517,28 +519,28 @@ def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:En
         )
         engine.execute(upsert_statement)
 
-if __name__ == "__main__":
-    # Initializing parameters
-    days_delta = 7
-    limit = 1000
-    holidays_begin_date = "2023-01-01"
-    holidays_end_date = "2024-12-31" 
-    holidays_data_path = ['etl_project/data/holidays/2023.csv', 'etl_project/data/holidays/2024.csv']
-    chunksize = 1000
-    sql_folder_path = "etl_project/sql" 
-    log_folder_path = "etl_project/logs"
-    pipeline_name = "Chicago Crime ETL"
-    crime_table_name = "crime_data"
-    logs_table_name = "logs"
-
+def run_pipeline_schedule(pipeline_config:dict):
     # Initializing environment variables
-    load_dotenv()
     APP_TOKEN = os.environ.get("APP_TOKEN")
     DB_USERNAME = os.environ.get("DB_USERNAME")
     DB_PASSWORD = os.environ.get("DB_PASSWORD")
     SERVER_NAME = os.environ.get("SERVER_NAME")
     DATABASE_NAME = os.environ.get("DATABASE_NAME")
     PORT = os.environ.get("PORT")
+
+    # Initializing parameters from YAML file
+    config = pipeline_config.get("config")
+    days_delta=config.get("days_delta")
+    limit=config.get("limit")
+    holidays_begin_date=config.get("holidays_begin_date")
+    holidays_end_date=config.get("holidays_end_date")
+    holidays_data_path=config.get("holidays_data_path")
+    chunksize=config.get("chunksize")
+    sql_folder_path=config.get("sql_folder_path")
+    log_folder_path=config.get("log_folder_path")
+    pipeline_name=pipeline_config.get("name")
+    crime_table_name=config.get("crime_table_name")
+    logs_table_name=config.get("logs_table_name")
 
     # Connecting to postgres
     engine = create_postgres_connection(
@@ -559,142 +561,160 @@ if __name__ == "__main__":
 
     # Try-except to log any errors during pipeline run
     try:
-        # Log pipeline start to logs table in postgres
-        logs_data = create_logs_data(run_id=run_id, status="start", pipeline_name=pipeline_name, config={}, logs=None)
-        load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
+            # Log pipeline start to logs table in postgres
+            logs_data = create_logs_data(run_id=run_id, status="start", pipeline_name=pipeline_name, config=config, logs=None)
+            load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
 
-        pipeline_logging.logger.info("Pipeline start")
-        pipeline_start_time = time.time()
-        
-        # Checking what tables exist in database
-        pipeline_logging.logger.info("Inspecting database tables")
-        inspector = inspect(engine)
-        
-        # Checking if ward table exists inside of database
-        if 'ward_offices' not in inspector.get_table_names():
-            pipeline_logging.logger.info("Extracting ward data")
-            ward_df = extract_csv(csv_file_path="etl_project/data/Ward_Offices.csv")
-
-            pipeline_logging.logger.info("Creating ward table")
-            ward_table = create_ward_table(engine=engine)
-
-            pipeline_logging.logger.info("Inserting data records to ward table") 
-            ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
-            load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
-
-        # Checking if police table exists inside of database
-        if 'police_stations' not in inspector.get_table_names():
-            pipeline_logging.logger.info("Extracting police data")
-            police_df = extract_csv(csv_file_path="etl_project/data/Police_Stations.csv")
-
-            pipeline_logging.logger.info("Creating police table")
-            police_table = create_police_table(engine=engine)
-
-            pipeline_logging.logger.info("Inserting data records to police table")
-            police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
-            load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
-
-        # Checking if date table exists inside of database
-        if 'date' not in inspector.get_table_names():
-            pipeline_logging.logger.info("Generating date data")
-            date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
-
-            pipeline_logging.logger.info("Creating date table")
-            date_table = create_date_table(engine=engine)
-
-            pipeline_logging.logger.info("Inserting data records to date table")
-            date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
-            load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
-
-        # Checking if crime table exists inside of database
-        if 'crime_data' not in inspector.get_table_names():
-            pipeline_logging.logger.info("Creating crime table")
-            crime_table = create_crime_table(engine=engine)
-
-            # Extracting crime data from beginning
-            start_date = get_min_date_crime_api(APP_TOKEN=APP_TOKEN)
-            end_date = get_max_date_crime_api(APP_TOKEN=APP_TOKEN)
-            date_ranges = _generate_date_ranges(start_date=start_date, end_date=end_date, days_delta=days_delta)
-            for date_range in date_ranges:
-                start_time = date_range['start_time']
-                end_time = date_range['end_time']
-
-                pipeline_logging.logger.info(f"Extracting API data - {start_time} - {end_time}")
-                crime_df = extract_crime_api(
-                    APP_TOKEN=APP_TOKEN, 
-                    column_name="date_of_occurrence",
-                    start_time=start_time, 
-                    end_time=end_time, 
-                    limit=limit
-                )
-
-                pipeline_logging.logger.info(f"Transforming API data - {start_time} - {end_time}")
-                crime_df = transform_crime_data(df=crime_df)
-
-                pipeline_logging.logger.info(f"Loading API data - {start_time} - {end_time}")
-                crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
-                load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
-        else:
-            pipeline_logging.logger.info("Crime table exists - Checking for new API updates")
-            max_api_str = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
-            max_table = get_max_update_time_crime_table(crime_table_name=crime_table_name, engine=engine)
-            max_api = datetime.strptime(max_api_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+            pipeline_logging.logger.info("Pipeline start")
+            pipeline_start_time = time.time()
             
-            if max_api > max_table:
-                pipeline_logging.logger.info("New updates exist - Retrieving updated records from API")
+            # Checking what tables exist in database
+            pipeline_logging.logger.info("Inspecting database tables")
+            inspector = inspect(engine)
+            
+            # Checking if ward table exists inside of database
+            if 'ward_offices' not in inspector.get_table_names():
+                pipeline_logging.logger.info("Extracting ward data")
+                ward_df = extract_csv(csv_file_path="data/Ward_Offices.csv")
 
-                # Configuring parameters in correct format
-                min_updated_at_val = max_table + timedelta(milliseconds=1) # ensure that new data does not overlap with current data
-                start_time = min_updated_at_val.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
-                end_time = max_api_str[:-1]
+                pipeline_logging.logger.info("Creating ward table")
+                ward_table = create_ward_table(engine=engine)
 
-                pipeline_logging.logger.info(f"Extracting API data - {start_time} - {end_time}")
-                crime_df = extract_crime_api(
-                    APP_TOKEN=APP_TOKEN, 
-                    column_name=":updated_at",
-                    start_time=start_time, 
-                    end_time=end_time, 
-                    limit=limit
-                )
+                pipeline_logging.logger.info("Inserting data records to ward table") 
+                ward_data = ward_df.where(pd.notnull(ward_df), None).to_dict(orient='records')
+                load_data_to_postgres(chunksize=chunksize, data=ward_data, table=ward_table, engine=engine)
 
-                pipeline_logging.logger.info(f"Transforming API data - {start_time} - {end_time}")
-                crime_df = transform_crime_data(df=crime_df)
+            # Checking if police table exists inside of database
+            if 'police_stations' not in inspector.get_table_names():
+                pipeline_logging.logger.info("Extracting police data")
+                police_df = extract_csv(csv_file_path="data/Police_Stations.csv")
+
+                pipeline_logging.logger.info("Creating police table")
+                police_table = create_police_table(engine=engine)
+
+                pipeline_logging.logger.info("Inserting data records to police table")
+                police_data = police_df.where(pd.notnull(police_df), None).to_dict(orient="records")
+                load_data_to_postgres(chunksize=chunksize, data=police_data, table=police_table, engine=engine)
+
+            # Checking if date table exists inside of database
+            if 'date' not in inspector.get_table_names():
+                pipeline_logging.logger.info("Generating date data")
+                date_df = generate_date_df(begin_date=holidays_begin_date, end_date=holidays_end_date, holidays_data_path=holidays_data_path)
+
+                pipeline_logging.logger.info("Creating date table")
+                date_table = create_date_table(engine=engine)
+
+                pipeline_logging.logger.info("Inserting data records to date table")
+                date_data = date_df.where(pd.notnull(date_df), None).to_dict(orient='records')
+                load_data_to_postgres(chunksize=chunksize, data=date_data, table=date_table, engine=engine)
+
+            # Checking if crime table exists inside of database
+            if 'crime_data' not in inspector.get_table_names():
+                pipeline_logging.logger.info("Creating crime table")
+                crime_table = create_crime_table(engine=engine)
+
+                # Extracting crime data from beginning
+                start_date = get_min_date_crime_api(APP_TOKEN=APP_TOKEN)
+                end_date = get_max_date_crime_api(APP_TOKEN=APP_TOKEN)
+                date_ranges = _generate_date_ranges(start_date=start_date, end_date=end_date, days_delta=days_delta)
+                for date_range in date_ranges:
+                    start_time = date_range['start_time']
+                    end_time = date_range['end_time']
+
+                    pipeline_logging.logger.info(f"Extracting API data - {start_time} - {end_time}")
+                    crime_df = extract_crime_api(
+                        APP_TOKEN=APP_TOKEN, 
+                        column_name="date_of_occurrence",
+                        start_time=start_time, 
+                        end_time=end_time, 
+                        limit=limit
+                    )
+
+                    pipeline_logging.logger.info(f"Transforming API data - {start_time} - {end_time}")
+                    crime_df = transform_crime_data(df=crime_df)
+
+                    pipeline_logging.logger.info(f"Loading API data - {start_time} - {end_time}")
+                    crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
+                    load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
+            else:
+                pipeline_logging.logger.info("Crime table exists - Checking for new API updates")
+                max_api_str = get_max_update_time_crime_api(APP_TOKEN=APP_TOKEN)
+                max_table = get_max_update_time_crime_table(crime_table_name=crime_table_name, engine=engine)
+                max_api = datetime.strptime(max_api_str, '%Y-%m-%dT%H:%M:%S.%fZ')
                 
-                pipeline_logging.logger.info("Upserting new updates to crime table")
-                crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
-                crime_table = create_crime_table(engine=engine) # does not re-create crime table in this case but returns table information
-                load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
-            else:
-                pipeline_logging.logger.info("No new records to upsert")
+                if max_api > max_table:
+                    pipeline_logging.logger.info("New updates exist - Retrieving updated records from API")
+
+                    # Configuring parameters in correct format
+                    min_updated_at_val = max_table + timedelta(milliseconds=1) # ensure that new data does not overlap with current data
+                    start_time = min_updated_at_val.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
+                    end_time = max_api_str[:-1]
+
+                    pipeline_logging.logger.info(f"Extracting API data - {start_time} - {end_time}")
+                    crime_df = extract_crime_api(
+                        APP_TOKEN=APP_TOKEN, 
+                        column_name=":updated_at",
+                        start_time=start_time, 
+                        end_time=end_time, 
+                        limit=limit
+                    )
+
+                    pipeline_logging.logger.info(f"Transforming API data - {start_time} - {end_time}")
+                    crime_df = transform_crime_data(df=crime_df)
+                    
+                    pipeline_logging.logger.info("Upserting new updates to crime table")
+                    crime_data = crime_df.where(pd.notnull(crime_df), None).to_dict(orient='records')
+                    crime_table = create_crime_table(engine=engine) # does not re-create crime table in this case but returns table information
+                    load_data_to_postgres(chunksize=chunksize, data=crime_data, table=crime_table, engine=engine)
+                else:
+                    pipeline_logging.logger.info("No new records to upsert")
+                
+            # Checking what views exist in database
+            pipeline_logging.logger.info("Inspecting database views")
+            inspector = inspect(engine)
             
-        # Checking what views exist in database
-        pipeline_logging.logger.info("Inspecting database views")
-        inspector = inspect(engine)
-        
-        for sql_file in os.listdir(sql_folder_path):
-            view = sql_file.split(".")[0] # name of view to match the name of the sql file
+            for sql_file in os.listdir(sql_folder_path):
+                view = sql_file.split(".")[0] # name of view to match the name of the sql file
 
-            if view not in inspector.get_view_names():
-                pipeline_logging.logger.info(f"View {view} does not exist - Creating view")
-                with open(f'{sql_folder_path}/{sql_file}', 'r') as f:
-                    sql_query = f.read()
-                    engine.execute(f"create view {view} as {sql_query};")
-                    pipeline_logging.logger.info(f"Successfully created view {view}")
-            else:
-                pipeline_logging.logger.info(f"View {view} already exists in database")\
+                if view not in inspector.get_view_names():
+                    pipeline_logging.logger.info(f"View {view} does not exist - Creating view")
+                    with open(f'{sql_folder_path}/{sql_file}', 'r') as f:
+                        sql_query = f.read()
+                        engine.execute(f"create view {view} as {sql_query};")
+                        pipeline_logging.logger.info(f"Successfully created view {view}")
+                else:
+                    pipeline_logging.logger.info(f"View {view} already exists in database")\
 
-        pipeline_end_time = time.time()
-        pipeline_run_time = pipeline_end_time - pipeline_start_time
-        pipeline_logging.logger.info(f"Pipeline finished in {pipeline_run_time} seconds")
-        pipeline_logging.logger.info("Successful pipeline run")
-        
-        # Log pipeline successful run to logs table in postgres
-        logs_data = create_logs_data(run_id=run_id, status="success", pipeline_name=pipeline_name, config={}, logs=pipeline_logging.get_logs())
-        load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
-        pipeline_logging.logger.handlers.clear() # ensure logger handlers are cleared
+            pipeline_end_time = time.time()
+            pipeline_run_time = pipeline_end_time - pipeline_start_time
+            pipeline_logging.logger.info(f"Pipeline finished in {pipeline_run_time} seconds")
+            pipeline_logging.logger.info("Successful pipeline run")
+            
+            # Log pipeline successful run to logs table in postgres
+            logs_data = create_logs_data(run_id=run_id, status="success", pipeline_name=pipeline_name, config=config, logs=pipeline_logging.get_logs())
+            load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
+            pipeline_logging.logger.handlers.clear() # ensure logger handlers are cleared
 
     except BaseException as e:
         pipeline_logging.logger.error(f"Pipeline failed with exception {e}")
-        logs_data = create_logs_data(run_id=run_id, status="fail", pipeline_name=pipeline_name, config={}, logs=pipeline_logging.get_logs())
+        logs_data = create_logs_data(run_id=run_id, status="fail", pipeline_name=pipeline_name, config=config, logs=pipeline_logging.get_logs())
         load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
         pipeline_logging.logger.handlers.clear()
+
+if __name__ == "__main__":
+    load_dotenv()
+
+    yaml_file_path = __file__.replace(".py", ".yaml")
+    if Path(yaml_file_path).exists():
+        with open(yaml_file_path) as yaml_file:
+            pipeline_config = yaml.safe_load(yaml_file)
+
+    schedule.every(pipeline_config.get("schedule").get("run_seconds")).seconds.do(
+        run_pipeline_schedule,
+        pipeline_config=pipeline_config
+    )
+
+    while True:
+        schedule.run_pending()
+        time.sleep(pipeline_config.get("schedule").get("poll_seconds"))
+    

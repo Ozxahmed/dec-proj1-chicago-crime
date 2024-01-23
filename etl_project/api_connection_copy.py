@@ -519,12 +519,50 @@ def load_data_to_postgres(chunksize:int, data:list[dict], table:Table, engine:En
         )
         engine.execute(upsert_statement)
 
+def run_pipeline_schedule(pipeline_config:dict):
+    # Initializing environment variables
+    APP_TOKEN = os.environ.get("APP_TOKEN")
+    DB_USERNAME = os.environ.get("DB_USERNAME")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD")
+    SERVER_NAME = os.environ.get("SERVER_NAME")
+    DATABASE_NAME = os.environ.get("DATABASE_NAME")
+    PORT = os.environ.get("PORT")
 
-def run_pipeline_schedule():
+    # Initializing parameters from YAML file
+    config = pipeline_config.get("config")
+    days_delta=config.get("days_delta")
+    limit=config.get("limit")
+    holidays_begin_date=config.get("holidays_begin_date")
+    holidays_end_date=config.get("holidays_end_date")
+    holidays_data_path=config.get("holidays_data_path")
+    chunksize=config.get("chunksize")
+    sql_folder_path=config.get("sql_folder_path")
+    log_folder_path=config.get("log_folder_path")
+    pipeline_name=pipeline_config.get("name")
+    crime_table_name=config.get("crime_table_name")
+    logs_table_name=config.get("logs_table_name")
+
+    # Connecting to postgres
+    engine = create_postgres_connection(
+        username=DB_USERNAME, 
+        password=DB_PASSWORD, 
+        host=SERVER_NAME, 
+        port=PORT, 
+        database=DATABASE_NAME)
+    
+    # Creating table in database for pipeline metadata logs (does not re-create table if it already exists)
+    logs_table = create_logs_table(engine=engine)
+
+    # Extracting next run_id value to be used for writing new records to metadata logs table
+    run_id = get_logs_table_run_id(logs_table_name=logs_table_name, engine=engine)
+
+    # Instantiating console logger for pipeline run
+    pipeline_logging = PipelineLogging(pipeline_name=pipeline_name, log_folder_path=log_folder_path)
+
     # Try-except to log any errors during pipeline run
     try:
             # Log pipeline start to logs table in postgres
-            logs_data = create_logs_data(run_id=run_id, status="start", pipeline_name=pipeline_name, config={}, logs=None)
+            logs_data = create_logs_data(run_id=run_id, status="start", pipeline_name=pipeline_name, config=config, logs=None)
             load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
 
             pipeline_logging.logger.info("Pipeline start")
@@ -653,79 +691,30 @@ def run_pipeline_schedule():
             pipeline_logging.logger.info("Successful pipeline run")
             
             # Log pipeline successful run to logs table in postgres
-            logs_data = create_logs_data(run_id=run_id, status="success", pipeline_name=pipeline_name, config={}, logs=pipeline_logging.get_logs())
+            logs_data = create_logs_data(run_id=run_id, status="success", pipeline_name=pipeline_name, config=config, logs=pipeline_logging.get_logs())
             load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
             pipeline_logging.logger.handlers.clear() # ensure logger handlers are cleared
 
     except BaseException as e:
         pipeline_logging.logger.error(f"Pipeline failed with exception {e}")
-        logs_data = create_logs_data(run_id=run_id, status="fail", pipeline_name=pipeline_name, config={}, logs=pipeline_logging.get_logs())
+        logs_data = create_logs_data(run_id=run_id, status="fail", pipeline_name=pipeline_name, config=config, logs=pipeline_logging.get_logs())
         load_data_to_postgres(chunksize=chunksize, data=logs_data, table=logs_table, engine=engine)
         pipeline_logging.logger.handlers.clear()
 
 if __name__ == "__main__":
-    
+    load_dotenv()
 
-    # get config variables
     yaml_file_path = __file__.replace(".py", ".yaml")
     if Path(yaml_file_path).exists():
         with open(yaml_file_path) as yaml_file:
             pipeline_config = yaml.safe_load(yaml_file)
-            PIPELINE_NAME = pipeline_config.get("name")
-    else:
-        raise Exception(
-            f"Missing {yaml_file_path} file! Please create the yaml file with at least a `name` key for the pipeline name."
-        )
-    
-    # Initializing parameters
-    config=pipeline_config.get("config")
 
-    days_delta=config.get("days_delta")
-    limit=config.get("limit")
-    holidays_begin_date=config.get("holidays_begin_date")
-    holidays_end_date=config.get("holidays_end_date")
-    holidays_data_path=config.get("holidays_data_path")
-    chunksize=config.get("chunksize")
-    sql_folder_path=config.get("sql_folder_path")
-    log_folder_path=config.get("log_folder_path")
-    pipeline_name=config.get("pipeline_name")
-    crime_table_name=config.get("crime_table_name")
-    logs_table_name=config.get("logs_table_name")
-
-    # Initializing environment variables
-    load_dotenv()
-    APP_TOKEN = os.environ.get("APP_TOKEN")
-    DB_USERNAME = os.environ.get("DB_USERNAME")
-    DB_PASSWORD = os.environ.get("DB_PASSWORD")
-    SERVER_NAME = os.environ.get("SERVER_NAME")
-    DATABASE_NAME = os.environ.get("DATABASE_NAME")
-    PORT = os.environ.get("PORT")
-
-    # Connecting to postgres
-    engine = create_postgres_connection(
-        username=DB_USERNAME, 
-        password=DB_PASSWORD, 
-        host=SERVER_NAME, 
-        port=PORT, 
-        database=DATABASE_NAME)
-    
-    # Creating table in database for pipeline metadata logs (does not re-create table if it already exists)
-    logs_table = create_logs_table(engine=engine)
-
-    # Extracting next run_id value to be used for writing new records to metadata logs table
-    run_id = get_logs_table_run_id(logs_table_name=logs_table_name, engine=engine)
-
-    # Instantiating console logger for pipeline run
-    pipeline_logging = PipelineLogging(pipeline_name=pipeline_name, log_folder_path=log_folder_path)
-
-    # set schedule
     schedule.every(pipeline_config.get("schedule").get("run_seconds")).seconds.do(
-        run_pipeline_schedule
+        run_pipeline_schedule,
+        pipeline_config=pipeline_config
     )
-    pipeline_logging.logger.info("Pipeline scheduled")
 
     while True:
         schedule.run_pending()
-        pipeline_logging.logger.info("Shhhhh - pipeline is sleeping")
         time.sleep(pipeline_config.get("schedule").get("poll_seconds"))
     
