@@ -1,7 +1,11 @@
 ```
-├── assets.py
-├── connectors.py
-├── data
-│   ├── Holidays_2023.csv
-│   ├── Holidays_2024.csv
-├── pipelines.py
+├── etl_project
+├   ├── data
+│   ├── logs
+│   ├── sql
+│   api_connection.py
+│   api_connection.yaml
+├── etl_project_tests
+│   ├── assets
+│   ├── connectors
+│   ├── data
