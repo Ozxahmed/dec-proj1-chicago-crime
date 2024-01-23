@@ -5,11 +5,10 @@ FROM python:3.9
 WORKDIR /app
 
 # Copy
-COPY etl_project/ /app/etl_project/
-COPY requirements.txt /app/
+COPY . /app
 
 # Install any needed packages specified in requirements.txt
 RUN pip install -r requirements.txt
 
 # Run ETL pipeline script when container launches
-CMD ["python", "etl_project/api_connection.py"]
+CMD ["python", "-m", "etl_project.api_connection"]
