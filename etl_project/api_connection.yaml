@@ -13,7 +13,7 @@ config:
   crime_table_name: "crime_data"
   logs_table_name: "logs"
 schedule:
-  run_seconds: 10
-  poll_seconds: 5
+  run_seconds: 100
+  poll_seconds: 10
 
 # Replace run_seconds with 86400, for full day
