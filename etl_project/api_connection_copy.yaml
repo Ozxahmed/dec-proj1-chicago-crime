@@ -1,18 +1,19 @@
-name: api_connection_copy
-config: 
+name: "Chicago Crimes ETL"
+config:
   days_delta: 7
   limit: 1000
-  holidays_begin_date: "2023-01-01"
-  holidays_end_date: "2024-12-31" 
-  holidays_data_path : ['data/holidays/2023.csv', 'data/holidays/2024.csv']
   chunksize: 1000
-  sql_folder_path: "sql" 
-  log_folder_path: "logs"
-  pipeline_name: "Chicago Crime ETL"
+  holidays_begin_date: "2023-01-01"
+  holidays_end_date: "2024-12-31"
+  holidays_data_path: 
+    - 'etl_project/data/holidays/2023.csv' 
+    - 'etl_project/data/holidays/2024.csv'
+  sql_folder_path: "etl_project/sql" 
+  log_folder_path: "etl_project/logs"
   crime_table_name: "crime_data"
   logs_table_name: "logs"
 schedule:
-  run_seconds: 60
-  poll_seconds: 10
+  run_seconds: 10
+  poll_seconds: 5
 
 # Replace run_seconds with 86400, for full day
