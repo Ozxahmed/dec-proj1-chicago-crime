@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from etl_project.api_connection import extract_crime_api
+from etl_project.pipeline import extract_crime_api
 import os
 import pytest
 from datetime import datetime
@@ -10,7 +10,7 @@ def setup():
     load_dotenv()
 
 
-def test_chicago_crimes_api_connection(setup):
+def test_chicago_crimes_pipeline(setup):
     APP_TOKEN = os.environ.get("APP_TOKEN")
     column_names = ["date_of_occurrence", ":updated_at"]
     start_time = '2024-01-01T00:00:00.000'

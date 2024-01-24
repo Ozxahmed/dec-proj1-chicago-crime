@@ -1,4 +1,4 @@
-from etl_project.api_connection import _generate_date_ranges, generate_date_df, extract_csv, transform_crime_data
+from etl_project.pipeline import _generate_date_ranges, generate_date_df, extract_csv, transform_crime_data
 import pandas as pd
 import pytest
 

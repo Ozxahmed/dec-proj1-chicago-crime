@@ -575,7 +575,7 @@ def run_pipeline_schedule(pipeline_config:dict):
             # Checking if ward table exists inside of database
             if 'ward_offices' not in inspector.get_table_names():
                 pipeline_logging.logger.info("Extracting ward data")
-                ward_df = extract_csv(csv_file_path="data/Ward_Offices.csv")
+                ward_df = extract_csv(csv_file_path="etl_project/data/Ward_Offices.csv")
 
                 pipeline_logging.logger.info("Creating ward table")
                 ward_table = create_ward_table(engine=engine)
@@ -587,7 +587,7 @@ def run_pipeline_schedule(pipeline_config:dict):
             # Checking if police table exists inside of database
             if 'police_stations' not in inspector.get_table_names():
                 pipeline_logging.logger.info("Extracting police data")
-                police_df = extract_csv(csv_file_path="data/Police_Stations.csv")
+                police_df = extract_csv(csv_file_path="etl_project/data/Police_Stations.csv")
 
                 pipeline_logging.logger.info("Creating police table")
                 police_table = create_police_table(engine=engine)
