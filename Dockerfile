@@ -11,4 +11,4 @@ COPY . /app
 RUN pip install -r requirements.txt
 
 # Run ETL pipeline script when container launches
-CMD ["python", "-m", "etl_project.api_connection"]
+CMD ["python", "-m", "etl_project.pipeline"]
