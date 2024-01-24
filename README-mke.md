@@ -47,6 +47,8 @@ In addition to the Chicago Crimes data, we used static datasets for 2023 and 202
 
 Below is the solution architecture description and diagram, illustrating the key components and their interactions in our project.
 
+![DEC Project 1 Architecture](images/DEC-Project1-architecture.jpg)
+
 **Extraction Pattern:**
 
 We are using a live dataset that updates periodically (weekly). For the first time the code is run, the pipeline extracts the data two weeks at a time until all data completed the ETL process. This serves as a backfill of the databse. If the database exists, the pipeline identifies the max data updated field in the database and extracts from that date to today's date. The extraction pipeline is scheduled to run daily to check if data has been updated. 
@@ -57,9 +59,13 @@ For the first data load, the pipeline extracts, transforms and loads the two wee
     
 **Data Transformation Patterns:** 
 
-There are two places we use data transformation patterns. The first is after the extract of the crime data and import of the .csv data. We used Pandas to drop columns, change column names and generate the holiday dataframe. The second is after the data has been loaded into the database. We use sql templates to generate views in the database. These transformation include joining, grouping, sorting, and aggregation function. The SQL transformations result in several table views in the database. 
+There are two places we use data transformation patterns. The first is after the extract of the crime data and import of the .csv data. We used Pandas to drop columns, change column names and generate the holiday dataframe. The second is after the data has been loaded into the database. We use sql templates to generate views in the database. These transformation include joining, grouping, sorting, and aggregation function. The SQL transformations result in several table views in the database. Our ERD diagram can be seen below:
 
-![DEC Project 1 Architecture](images/DEC-Project1-architecture.jpg)
+![DEC Project 1 Architecture](images/chicago-crimes-erd-diagram.jpg)
+
+**Project Flow Chart** 
+
+For more details on project data flow, please see the following ![Chicago Crime Project Flowchart](images/DEC-Project1-Flowchart.pdf)
 
 ## Project Outline
 1. Extraction 
@@ -87,8 +93,8 @@ There are two places we use data transformation patterns. The first is after the
 
 The culmination of our efforts resulted in a refined dataset ready for analysis. We conducted a demo run to showcase the capabilities of our solution. Here are some highlights:
     
-    Dataset Overview: Brief description of the final dataset.
-    Demo Run: Steps and outcomes of the demonstration.
+   Dataset Overview: Brief description of the final dataset.\
+   Demo Run: Steps and outcomes of the demonstration.
 
 # Limitations and Lessons Learned
 
