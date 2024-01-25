@@ -168,3 +168,37 @@ python etl_project/pipeline.py
 ```
 
 Depending on the system it will take at least 5 mins to run. On the first run the pipeline will incrementally backfill the database with all the available crime records from the prior year. After that, on subsequent runs, it will upsert data based on the max `date_of_occurrence` date.
+
+---
+
+## AWS Screenshots
+
+Docker was used to containerize the pipeline, which was then loaded into AWS ECR, and ran on AWS ECS. Below are screenshots of this:
+
+### AWS ECS
+
+Screenshot of task running:
+
+![ECS task running](/dec-proj1-chicago-crime/images/ecs_task_running.png)
+
+Screenshot of logs:
+
+![ECS logs](/dec-proj1-chicago-crime/images/ecs_logs.png)
+
+### AWS ECR
+
+Screenshot of image in ECR repository:
+
+![ECR](/dec-proj1-chicago-crime/images/ecr_image_in_ecr.png)
+
+### AWS RDS
+
+Screenshot of database in RDS:
+
+![RDS](/dec-proj1-chicago-crime/images/rds_with_database.png)
+
+### S3
+
+Screenshot of `.env` file in S3 which was used in the task definition that ran the pipeline in ECS:
+
+![S3](/dec-proj1-chicago-crime/images/s3_env_file.png)
