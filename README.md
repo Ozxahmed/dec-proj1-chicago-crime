@@ -4,7 +4,7 @@
 
 The goal of this project was to create an end-to-end pipeline that will extract data from a constantly-updating (live) dataset and successfully load it to a relational database, imitating a real-life data warehouse. Transformations on the data would be done within the pipeline prior to loading (ETL), and also after loading (ELT), to simulate potential data manipulation requirements of real-time applications.
 
-The data should be loaded in an easy-to-use format so as to allow the data analysts/data scientists to immediately begin working with it without having to commit a sizeable amount of time to data manipulations. This means that the data should be loaded onto several distinct tables that can easily be merged with each other and that contains intuitive column names and data types for each distinct record.
+The data should be loaded in an easy-to-use format so as to allow the data analysts(DA)/data scientists(DS) to immediately begin working with it without having to commit a sizeable amount of time to data manipulations. This means that the data should be loaded onto several distinct tables that can easily be merged with each other and that contains intuitive column names and data types for each distinct record.
 
 The DA/DS person should not be concerned with the accuracy of each data record and the process by which each data record is inserted or updated within the database. The pipeline should abstract and automate all of these processes as much as possible.
 
@@ -69,7 +69,6 @@ Below is the solution architecture description and diagram, illustrating the key
   - **ECS** was used to run the docker container
   - **S3** was used to store the `.env` file.
   
-
 ## ELT/ETL Techniques Applied
 
 We employed Extract, Transform, Load (ETL) and Extract, Load, Transform (ELT) techniques to efficiently process and transform raw data into a format suitable for analysis.
@@ -105,6 +104,12 @@ Throughout the course of the project, we encountered various challenges and gain
 - It was very important to us as a group to be able to practice each step of the process. This was extremely valuable in contributing to our learning but did slow us down and may have added additional work or stress toward the end.
 - We had hoped to eliminate some of the technical debt in the code by making it more modular or object oriented. This is something that can be a follow on task.
 - We started by using Trello to manage tasks but found it worked better for our group to orangize tasks in the issues section of github. We were able to add code, comments and have discussion for each issue.
+- Include a `.dockerignore` file in the directory when building a docker image. If using a secrets file or an `.env` file, make sure to add it to the .dockerignore file so that it isn't included in the image.
+- When running the docker container on ECS, the cluster needs to be set up using a VPC with private subnets and a NAT Gateway. This can be done by searching for VPC on AWS, and then creating a VPC. Without this, I was getting the following error:
+
+   ```md
+   Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f02624f9e20>: Failed to establish a new connection: [Errno 110] Connection timed out')
+   ```
 
 ## Installation and Running Instructions
 
@@ -130,7 +135,7 @@ When installed successfully, you should be able to find `pgAdmin 4` in your appl
 
 ### 2. Clone Repository
 
-Clone the github repository using the options from the drop down menu here:
+Clone the github repository using the options from the `< > Code` drop down menu here:
 
 ![clone repo button](/dec-proj1-chicago-crime/images/clone_git_button.png)
 
@@ -156,10 +161,10 @@ PORT=<port>  # usually 5432
 
 ### 5. Run pipeline
 
-Once the .env file is created with the relevant App Token and database information, type the following command into the terminal from the directory:
+Once the .env file is created with the relevant App Token and database information, the pipeline can be ran using python. Assuming python is installed on your system, type the following command into the terminal from the directory:
 
 ```bash
 python etl_project/pipeline.py
 ```
 
-Depending on the system it will take at least 5 mins to run. On the first run this will incrementally backfill the database with all the available crime records from the prior year. After that, on subsequent runs, it will upsert data based on the max `date_of_occurrence` date. 
+Depending on the system it will take at least 5 mins to run. On the first run the pipeline will incrementally backfill the database with all the available crime records from the prior year. After that, on subsequent runs, it will upsert data based on the max `date_of_occurrence` date.
