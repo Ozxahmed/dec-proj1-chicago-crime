@@ -4,7 +4,12 @@
 
 The goal of this project was to create an end-to-end pipeline that will extract data from a constantly-updating (live) dataset and successfully load it to a relational database, imitating a real-life data warehouse. Transformations on the data would be done within the pipeline prior to loading (ETL), and also after loading (ELT), to simulate potential data manipulation requirements of real-time applications.
 
-The data should be loaded in an easy-to-use format so as to allow the data analysts(DA)/data scientists(DS) to immediately begin working with it without having to commit a sizeable amount of time to data manipulations. This means that the data should be loaded onto several distinct tables that can easily be merged with each other and that contains intuitive column names and data types for each distinct record.
+The data should be loaded in an easy-to-use format so as to allow the data analysts(DA)/data scientists(DS) to immediately begin working with it without having to commit a sizeable amount of time to data manipulations. This means that the data should be loaded onto several 
+
+
+
+
+inct tables that can easily be merged with each other and that contains intuitive column names and data types for each distinct record.
 
 The DA/DS person should not be concerned with the accuracy of each data record and the process by which each data record is inserted or updated within the database. The pipeline should abstract and automate all of these processes as much as possible.
 
@@ -137,7 +142,7 @@ When installed successfully, you should be able to find `pgAdmin 4` in your appl
 
 Clone the github repository using the options from the `< > Code` drop down menu here:
 
-![clone repo button](/dec-proj1-chicago-crime/images/clone_git_button.png)
+![clone repo button](/images/clone_git_button.png)
 
 ### 3. Get App Token
 
@@ -179,26 +184,26 @@ Docker was used to containerize the pipeline, which was then loaded into AWS ECR
 
 Screenshot of task running:
 
-![ECS task running](/dec-proj1-chicago-crime/images/ecs_task_running.png)
+![ECS task running](/images/ecs_task_running.png)
 
 Screenshot of logs:
 
-![ECS logs](/dec-proj1-chicago-crime/images/ecs_logs.png)
+![ECS logs](/images/ecs_logs.png)
 
 ### AWS ECR
 
 Screenshot of image in ECR repository:
 
-![ECR](/dec-proj1-chicago-crime/images/ecr_image_in_ecr.png)
+![ECR](/images/ecr_image_in_ecr.png)
 
 ### AWS RDS
 
 Screenshot of database in RDS:
 
-![RDS](/dec-proj1-chicago-crime/images/rds_with_database.png)
+![RDS](/images/rds_with_database.png)
 
 ### S3
 
 Screenshot of `.env` file in S3 which was used in the task definition that ran the pipeline in ECS:
 
-![S3](/dec-proj1-chicago-crime/images/s3_env_file.png)
+![S3](/images/s3_env_file.png)
