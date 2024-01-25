@@ -63,10 +63,10 @@ Below is the solution architecture description and diagram, illustrating the key
   - Storing all our data: crime data, dates, police stations, and ward offices.
 
 - **AWS RDS** was used for:
-  - hosting and managing our postgres database.
+  - Hosting and managing our postgres database.
 
 - **SQL** was used for:
-  - creating views off of the data that is loaded
+  - Creating views off of the data that is loaded
 
 - Other programs used:
   - **Docker** was used to containerize our pipeline
