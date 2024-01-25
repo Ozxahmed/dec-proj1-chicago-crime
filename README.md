@@ -27,7 +27,7 @@ Examples of these questions include but are not limited to:
 - What time of the day (morning, afternoon, evening, night) seems to have the highest number of crimes?
 - Which holidays have the highest incidences of crime and may require additional staffing or resources?
 - Which beats have the most violent crimes?
-- Which police districuts may need additional resources, specialized training, etc. based on the type and quantity of crime?
+- Which police districts may need additional resources, specialized training, etc. based on the type and quantity of crime?
 
 Our data will allow our users to make resourcing and policy decisions based on historical and newly generated data.
 
