@@ -45,7 +45,7 @@ The chosen live dataset for the project was the [Chicago Crimes One Year Prior t
 - The dataset also contains system fields that hold metadata information for each record (such as when the row was created, last updated, and a unique identifier for the row).
 - The dataset can be queried prior to extraction based on a SQL-like query language in order to specify which exact data you need (e.g. data created after a specific date).
 
-In addition to the Chicago Crimes data, we used static datasets for 2023 and 2024 holidays, police stations and ward offices.
+In addition to the Chicago Crimes data, we used static datasets for [2023 and 2024 holidays](https://www.chicago.gov/city/en/narr/misc/city-holidays.html), [Chicago police stations](https://data.cityofchicago.org/Public-Safety/Police-Stations/z8bn-74gv/data_preview) and [Chicago ward offices](https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Ward-Offices/htai-wnw4/data_preview). 
 
 ## Solution Architecture Diagram
 
@@ -63,10 +63,10 @@ Below is the solution architecture description and diagram, illustrating the key
   - Storing all our data: crime data, dates, police stations, and ward offices.
 
 - **AWS RDS** was used for:
-  - hosting and managing our postgres database.
+  - Hosting and managing our postgres database.
 
 - **SQL** was used for:
-  - creating views off of the data that is loaded
+  - Creating views off of the data that is loaded
 
 - Other programs used:
   - **Docker** was used to containerize our pipeline
@@ -80,7 +80,7 @@ We employed Extract, Transform, Load (ETL) and Extract, Load, Transform (ELT) te
 
 ### Extraction Pattern
 
-We are using a live dataset that updates periodically (6 days/week). Our pipeline first checks if the database exists. If the database doesn't exit, for the first time the code runs, the pipeline extracts the data two weeks at a time, based on the `date_of_occurrence` field, until all data has completed the ETL process and has been loaded into our database, which is hosted and managed on AWS RDS. This serves as a backfill of the database. If the database does exist, the pipeline identifies the max `updated_at` field in the database and extracts data starting from that date to today's date. The extraction pipeline is scheduled to run daily to check if data has been updated.
+We are using a live dataset that updates periodically (6 days/week). Our pipeline first checks if the database exists. If the database doesn't exit, for the first time the code runs, the pipeline extracts the data one week at a time, based on the `date_of_occurrence` field, until all data has completed the ETL process and has been loaded into our database, which is hosted and managed on AWS RDS. This serves as a backfill of the database. If the database does exist, the pipeline identifies the max `updated_at` field in the database and extracts data starting from that date to today's date. The extraction pipeline is scheduled to run daily to check if data has been updated.
 
 ### Data Transformation Patterns
 
@@ -96,11 +96,11 @@ The second set of transformations happens after the data has been loaded into th
 
 ### Data Loading Patterns
 
-Our pipeline extracts, transforms and loads two weeks of data at a time until the database has been completely backfilled.
+Our pipeline extracts, transforms and loads one weeks worth of data at a time until the database has been completely backfilled.
 
 ## Data Flow Chart
 
-For more details on project data flow, please see the [Chicago Crime Project Flowchart](images/DEC-Project1-Flowchart.pdf) pdf.
+For more details on project data flow, please see the [Chicago Crime Project Flowchart pdf](images/DEC-Project1-Flowchart.pdf).
 
 ## Limitations and Lessons Learned
 
@@ -169,10 +169,10 @@ PORT=<port>  # usually 5432
 Once the .env file is created with the relevant App Token and database information, the pipeline can be ran using python. Assuming python is installed on your system, type the following command into the terminal from the directory:
 
 ```bash
-python etl_project/pipeline.py
+python -m etl_project.pipeline
 ```
 
-Depending on the system it will take at least 5 mins to run. On the first run the pipeline will incrementally backfill the database with all the available crime records from the prior year. After that, on subsequent runs, it will upsert data based on the max `date_of_occurrence` date.
+Depending on the system it will take at least 5 mins to run. On the first run the pipeline will incrementally backfill the database with all the available crime records from the prior year. After that, on subsequent runs, it will upsert data based on the currently stored max `updated_at` date.
 
 ---
 
