@@ -101,6 +101,9 @@ The culmination of our efforts resulted in a refined dataset ready for analysis.
 Throughout the course of the project, we encountered various challenges and gained valuable insights. Here are some key lessons learnt during the project:
 
    - It was very important to us as a group to be able to practice each step of the process. This was extremely valuable in contributing to our learning but did slow us down and may have added additional work or stress toward the end. 
-   - We had hoped to eliminate some of the technical debt in the code by making it more modular or object oriented. This is something that can be a follow on task
-   - We started by using Trello to manage tasks but found it worked better for our group to orangize tasks in the issues section of GIT. We were able to add code, comments and have discussion for each issue. 
+   - We had hoped to eliminate some of the technical debt in the code by making it more modular or object oriented. This is something that can be a follow on task.
+   - We started by using Trello to manage tasks but found it worked better for our group to orangize tasks in the issues section of github. We were able to add code, comments and have discussion for each issue. 
+
+
+# Installation and Running Instructions 
 
