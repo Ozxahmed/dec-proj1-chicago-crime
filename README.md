@@ -137,7 +137,7 @@ When installed successfully, you should be able to find `pgAdmin 4` in your appl
 
 Clone the github repository using the options from the `< > Code` drop down menu here:
 
-![clone repo button](/dec-proj1-chicago-crime/images/clone_git_button.png)
+![clone repo button](/images/clone_git_button.png)
 
 ### 3. Get App Token
 
@@ -179,26 +179,26 @@ Docker was used to containerize the pipeline, which was then loaded into AWS ECR
 
 Screenshot of task running:
 
-![ECS task running](/dec-proj1-chicago-crime/images/ecs_task_running.png)
+![ECS task running](/images/ecs_task_running.png)
 
 Screenshot of logs:
 
-![ECS logs](/dec-proj1-chicago-crime/images/ecs_logs.png)
+![ECS logs](/images/ecs_logs.png)
 
 ### AWS ECR
 
 Screenshot of image in ECR repository:
 
-![ECR](/dec-proj1-chicago-crime/images/ecr_image_in_ecr.png)
+![ECR](/images/ecr_image_in_ecr.png)
 
 ### AWS RDS
 
 Screenshot of database in RDS:
 
-![RDS](/dec-proj1-chicago-crime/images/rds_with_database.png)
+![RDS](/images/rds_with_database.png)
 
 ### S3
 
 Screenshot of `.env` file in S3 which was used in the task definition that ran the pipeline in ECS:
 
-![S3](/dec-proj1-chicago-crime/images/s3_env_file.png)
+![S3](/images/s3_env_file.png)
