@@ -108,3 +108,58 @@ Throughout the course of the project, we encountered various challenges and gain
 
 ## Installation and Running Instructions
 
+### 1. Install PostgreSQL and pgAdmin
+
+Download PostgreSQL and pgAdmin by going to <https://www.postgresql.org/download/> and selecting the installer for your Operating System. Download the latest version of PostgreSQL.
+
+After downloading the installer, run the installer on your computer.
+
+Select all options for when promoted for the components you wish to install.
+
+![images/postgres-component.png](images/postgres-component.png)
+
+Enter a password:
+
+![images/postgres-password.png](images/postgres-password.png)
+
+Enter a port number. Note: The default port number `5432` is usually used when using PostgreSQL.
+
+When installed successfully, you should be able to find `pgAdmin 4` in your applications.
+
+![images/postgres-success.png](images/postgres-success.png)
+
+### 2. Clone Repository
+
+Clone the github repository using the options from the drop down menu here:
+
+![clone repo button](/dec-proj1-chicago-crime/images/clone_git_button.png)
+
+### 3. Get App Token
+
+In order to execute the pipeline, an App Token is needed to send requests through the API. To obtain the App Token, please follow the link [here](https://data.cityofchicago.org/profile/edit/developer_settings).
+
+### 4. Create .env file
+
+Create an `.env` file in the main directory with the following format:
+
+```py
+# City of Chicago App Token
+APP_TOKEN=<App Token>
+
+# db
+DB_USERNAME=<postgresql db username>
+DB_PASSWORD=<postgresql db password>
+SERVER_NAME=<servername>  # usually `localhost`
+DATABASE_NAME=<name of db>
+PORT=<port>  # usually 5432
+```
+
+### 5. Run pipeline
+
+Once the .env file is created with the relevant App Token and database information, type the following command into the terminal from the directory:
+
+```bash
+python etl_project/pipeline.py
+```
+
+Depending on the system it will take at least 5 mins to run. On the first run this will incrementally backfill the database with all the available crime records from the prior year. After that, on subsequent runs, it will upsert data based on the max `date_of_occurrence` date. 
