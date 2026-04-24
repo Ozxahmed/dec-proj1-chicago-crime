@@ -4,12 +4,7 @@
 
 The goal of this project was to create an end-to-end pipeline that will extract data from a constantly-updating (live) dataset and successfully load it to a relational database, imitating a real-life data warehouse. Transformations on the data would be done within the pipeline prior to loading (ETL), and also after loading (ELT), to simulate potential data manipulation requirements of real-time applications.
 
-The data should be loaded in an easy-to-use format so as to allow the data analysts(DA)/data scientists(DS) to immediately begin working with it without having to commit a sizeable amount of time to data manipulations. This means that the data should be loaded onto several 
-
-
-
-
-inct tables that can easily be merged with each other and that contains intuitive column names and data types for each distinct record.
+The data should be loaded in an easy-to-use format so as to allow the data analysts(DA)/data scientists(DS) to immediately begin working with it without having to commit a sizeable amount of time to data manipulations. This means that the data should be loaded onto several distinct tables that can easily be merged with each other and that contains intuitive column names and data types for each distinct record.
 
 The DA/DS person should not be concerned with the accuracy of each data record and the process by which each data record is inserted or updated within the database. The pipeline should abstract and automate all of these processes as much as possible.
 
